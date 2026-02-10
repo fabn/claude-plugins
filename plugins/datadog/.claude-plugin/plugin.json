@@ -1,0 +1,10 @@
+{
+  "name": "datadog",
+  "description": "Datadog monitoring workflows for Terraform-managed infrastructure. Includes dashboard creation with metric discovery, widget layout design, and HCL code generation.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Fabio Napoleoni",
+    "url": "https://github.com/fabn"
+  },
+  "keywords": ["datadog", "terraform", "monitoring", "dashboard", "metrics", "hcl"]
+}

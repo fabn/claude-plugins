@@ -1,0 +1,20 @@
+{
+  "name": "fabn-claude-plugins",
+  "owner": {
+    "name": "Fabio Napoleoni",
+    "url": "https://github.com/fabn"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for infrastructure, monitoring, and DevOps workflows",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "datadog",
+      "source": "./plugins/datadog",
+      "description": "Datadog monitoring workflows: dashboard creation, metric discovery, and Terraform HCL generation",
+      "version": "1.0.0",
+      "keywords": ["datadog", "terraform", "monitoring", "dashboard", "infrastructure"]
+    }
+  ]
+}
