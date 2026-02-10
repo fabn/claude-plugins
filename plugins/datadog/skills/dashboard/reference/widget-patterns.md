@@ -73,7 +73,7 @@ template_variable {
 template_variable {
   name     = "kube_cluster_name"
   prefix   = "kube_cluster_name"
-  defaults = ["example-project-prod"]
+  defaults = ["my-cluster-prod"]  # Replace with your actual cluster name
 }
 
 # Integration-specific: use the tag key as prefix

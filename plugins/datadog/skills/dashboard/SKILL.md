@@ -1,15 +1,22 @@
 ---
 name: datadog:dashboard
 description: |
-  Create and manage Datadog monitoring dashboards via Terraform. Handles metric discovery
-  using Datadog MCP, widget layout design, template variables, and team assignment.
+  This skill should be used when the user wants to create a Datadog monitoring dashboard
+  as Terraform HCL. Handles metric discovery via Datadog MCP, documentation, or
+  integrations-core CSV, widget layout design with grouped widgets, template variables,
+  team assignment, and terraform fmt validation.
   Activates on: "create dashboard", "datadog dashboard", "new dashboard", "add dashboard",
-  "dashboard for", "monitor dashboard", "creare dashboard", "nuova dashboard".
+  "dashboard for", "monitor dashboard", "build monitoring dashboard",
+  "generate dashboard HCL", "Terraform dashboard".
 ---
 
 # Datadog Dashboard Skill
 
 Create production-quality Datadog dashboards as Terraform HCL. This skill discovers metrics, designs grouped widget layouts, and generates formatted Terraform code ready to plan and apply.
+
+**Scope:** This skill handles dashboard creation only. It does not manage Datadog monitors, SLOs, or synthetic tests — those are separate Terraform resources.
+
+**Reference files:** Consult `reference/widget-patterns.md` for HCL code patterns and `reference/metric-discovery.md` for the full metric research workflow.
 
 ## Tools Used
 
@@ -176,21 +183,9 @@ ALL widgets MUST be organized in `group_definition` blocks:
 | `list_stream` | 5x3, 6x4 | Log panels |
 | `check_status` | 3x3 | Health indicators |
 
-### Query Value Rules
+### Query Value and Timeseries Rules
 
-- MUST have `conditional_formats` with green/yellow/red thresholds
-- SHOULD have `timeseries_background` (`type = "bars"` for counts, `"area"` for continuous)
-- SHOULD have `autoscale = true`
-- Set `custom_unit` when auto-detection fails
-- Use `precision = 0` for integers, `2-3` for decimals
-
-### Timeseries Rules
-
-- MUST have `show_legend = true` when displaying multiple series
-- Use `legend_layout = "auto"`, `legend_columns = ["avg", "max", "value"]`
-- Each request SHOULD have a formula with `alias` for readable legend labels
-- `display_type`: `line` for continuous, `bars` for counts/rates, `area` for cumulative
-- Semantic `style.palette`: `green` for success, `red` for errors, `blue`/`dog_classic` for neutral
+See `reference/widget-patterns.md` for detailed configuration patterns including conditional formats, timeseries backgrounds, legend configuration, display types, and style palettes.
 
 ### Units of Measure
 
