@@ -1,5 +1,5 @@
 ---
-name: datadog-dashboard
+name: datadog:dashboard
 description: |
   Create and manage Datadog monitoring dashboards via Terraform. Handles metric discovery
   using Datadog MCP, widget layout design, template variables, and team assignment.
