@@ -9,6 +9,16 @@
         "DD_API_KEY": "${DD_API_KEY}",
         "DD_APP_KEY": "${DD_APP_KEY}"
       }
+    },
+    "datadog.datadog-apm": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@winor30/mcp-server-datadog"],
+      "env": {
+        "DATADOG_API_KEY": "${DD_API_KEY}",
+        "DATADOG_APP_KEY": "${DD_APP_KEY}",
+        "DATADOG_SITE": "${DD_SITE}"
+      }
     }
   }
 }

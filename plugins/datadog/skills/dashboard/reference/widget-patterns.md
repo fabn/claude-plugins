@@ -371,7 +371,7 @@ formula {
 
 **Rollup for time bucketing:**
 ```hcl
-query = "sum:metric{*}.as_count().rollup(sum, daily, 'Europe/Rome')"  # Daily buckets in timezone
+query = "sum:metric{*}.as_count().rollup(sum, daily, 'America/New_York')"  # Daily buckets in timezone
 query = "sum:metric{*}.as_count().rollup(count, 3600)"                # Hourly buckets
 ```
 

@@ -137,6 +137,7 @@ Default filter:   env:production
 
 Next steps:
 - Search logs: /datadog:logs show me recent errors
+- Analyze traces: /datadog:traces find recent error traces
 - Create dashboard: /datadog:dashboard create a Redis dashboard
 ```
 
@@ -155,4 +156,5 @@ Adjust the summary based on what was actually configured. For missing items, sho
 ## Related Skills
 
 - **`/datadog:logs`** — Search and analyze logs (reads configuration written by this skill)
+- **`/datadog:traces`** — Search and analyze APM traces (reads configuration written by this skill)
 - **`/datadog:dashboard`** — Create Terraform-based Datadog dashboards

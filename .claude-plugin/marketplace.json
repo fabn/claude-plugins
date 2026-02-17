@@ -12,9 +12,9 @@
     {
       "name": "datadog",
       "source": "./plugins/datadog",
-      "description": "Datadog monitoring workflows: dashboard creation, log search and analysis, metric discovery, and interactive setup",
-      "version": "1.1.0",
-      "keywords": ["datadog", "terraform", "monitoring", "dashboard", "infrastructure", "metrics", "hcl", "logs", "search", "setup"]
+      "description": "Datadog monitoring workflows: dashboard creation, log search and analysis, APM trace investigation, metric discovery, and interactive setup",
+      "version": "1.2.0",
+      "keywords": ["datadog", "terraform", "monitoring", "dashboard", "infrastructure", "metrics", "hcl", "logs", "traces", "apm", "search", "setup"]
     }
   ]
 }
