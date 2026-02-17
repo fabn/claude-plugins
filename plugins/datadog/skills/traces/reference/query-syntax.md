@@ -93,7 +93,21 @@ from=$((now - 604800))  # 7 days ago
 - `start_time`: Start of time range in epoch seconds
 - `end_time`: End of time range in epoch seconds
 - `limit`: Maximum number of traces to return (default: 5, keep low to manage context size)
-- `sort`: `"desc"` for newest first, `"asc"` for oldest first
+- `sort`: `-timestamp` for newest first, `timestamp` for oldest first
+
+**Sort guidance:**
+- **Search mode** (multiple traces): Use `-timestamp` to get the most recent traces first
+- **Single trace lookup** (`trace_id:<id>`): Use `timestamp` (ascending) to capture slow SQL/framework spans at the beginning of the trace. Descending returns GraphQL resolver micro-spans first, pushing SQL spans beyond the limit
+
+**Note:** The API returns individual **spans**, not grouped traces. A single request trace can have hundreds of spans (especially GraphQL with per-field resolvers). Each MySQL query produces two spans (active_record parent + mysql2 child).
+
+**Filtering by span type in single-trace lookups:**
+Combine `trace_id` with `operation_name` to extract only specific span types:
+```
+trace_id:123456 operation_name:mysql2.query          # SQL queries only
+trace_id:123456 operation_name:graphql.execute        # GraphQL execution spans
+trace_id:123456 operation_name:redis.command           # Redis calls only
+```
 
 ## Trace URL Format
 

@@ -83,6 +83,13 @@ Build query: `trace_id:<id>`
 
 Use an extended time range of 30 days (old traces may still be relevant).
 
+**Important:** For single-trace lookups, use ascending sort (`sort: "timestamp"`) and `limit: 50`. The API returns individual **spans**, not grouped traces. Descending sort returns the tail end (tiny GraphQL resolver spans), missing the slow SQL queries at the beginning. Ascending sort captures the setup, SQL, and framework spans first.
+
+To extract only SQL spans from a trace (useful for performance analysis), combine with operation filter:
+```
+trace_id:<id> operation_name:mysql2.query
+```
+
 #### Mode C: Code-Based Investigation
 
 When the user points to code with controller actions or endpoint definitions:
@@ -116,11 +123,55 @@ list_traces(
   start_time: <epoch seconds>,
   end_time: <epoch seconds>,
   limit: 5,
-  sort: "desc"
+  sort: "desc"          # For search mode (Mode A) — newest traces first
 )
 ```
 
 Keep `limit` at 5 by default to manage context size. Trace responses can be 100KB+ per trace.
+
+**For single-trace lookups (Mode B):**
+```
+list_traces(
+  query: "trace_id:<id>",
+  start_time: <epoch seconds>,
+  end_time: <epoch seconds>,
+  limit: 50,
+  sort: "timestamp"     # Ascending — captures slow SQL/framework spans first
+)
+```
+
+To extract only SQL queries from a trace, add an operation filter:
+```
+list_traces(
+  query: "trace_id:<id> operation_name:mysql2.query",
+  ...
+)
+```
+
+When the response exceeds the token limit, use the inline Python parser instead of the parse script (which deduplicates by traceId, collapsing all spans into one entry):
+
+```python
+# Inline span analysis — extract top spans by duration from saved file
+cat "<saved_file>" | python3 -c "
+import json, sys
+raw = json.load(sys.stdin)
+text = raw[0]['text'].replace('Traces: ', '', 1)
+spans = json.loads(text).get('traces', [])
+results = []
+for s in spans:
+    a = s.get('attributes', {}); c = a.get('custom', {}); ap = a.get('additionalProperties', {})
+    db = c.get('db', {}); sql = db.get('statement', '')[:150] if db.get('statement') else ''
+    results.append({
+        'op': ap.get('operation_name', ''), 'duration_ms': round(c.get('duration', 0) / 1e6, 1),
+        'resource': a.get('resourceName', '')[:80], 'sql': sql, 'start': a.get('startTimestamp', '')
+    })
+results.sort(key=lambda x: x['duration_ms'], reverse=True)
+print(f'Total spans: {len(results)}')
+for r in results[:20]:
+    d = r['sql'][:80] if r['sql'] else r['resource']
+    print(f'{r[\"duration_ms\"]:>8.1f}ms  {r[\"op\"]:<35} {d}')
+"
+```
 
 ### Step 4: Parse Response
 
