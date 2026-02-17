@@ -15,6 +15,13 @@
       "description": "Datadog monitoring workflows: dashboard creation, log search and analysis, APM trace investigation, metric discovery, and interactive setup",
       "version": "1.2.0",
       "keywords": ["datadog", "terraform", "monitoring", "dashboard", "infrastructure", "metrics", "hcl", "logs", "traces", "apm", "search", "setup"]
+    },
+    {
+      "name": "rails",
+      "source": "./plugins/rails",
+      "description": "Ruby on Rails development workflows: debugging and performance profiling, test scaffolding with RSpec and FactoryBot, and refactoring patterns for service objects and concerns",
+      "version": "0.1.0",
+      "keywords": ["ruby", "rails", "rspec", "refactoring", "debugging", "performance", "testing", "factory-bot", "service-objects"]
     }
   ]
 }
