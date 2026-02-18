@@ -32,6 +32,9 @@ claude-plugins/
 1. Create `plugins/<plugin>/skills/<skill-name>/SKILL.md`
 2. Add a `reference/` subdirectory if the skill needs supporting documentation
 3. The skill will be invocable as `/<plugin>:<skill-name>`
+4. Update the plugin's `README.md` (table, getting started, skill details section)
+5. Add new keywords to both `plugins/<plugin>/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+6. Keep `description` fields in sync between plugin.json and marketplace.json
 
 ## Testing
 
@@ -44,6 +47,8 @@ claude-plugins/
 
 - Plugin names should be lowercase, hyphen-separated (e.g., `datadog`, `aws-ecs`)
 - Skill names should describe the action (e.g., `dashboard`, `deploy`, `migrate`)
+- SKILL.md frontmatter uses third-person description ("This skill should be used when...") with an "Activates on:" block listing trigger phrases (include Italian variants)
+- SKILL.md body follows: intro → reference pointer → tools used → numbered workflow steps → error handling table → reference files section
 - MCP server names in `.mcp.json` should be namespaced to avoid collision (e.g., `datadog.datadog-mcp`)
 - All env vars required by MCP servers should be documented in the README
 

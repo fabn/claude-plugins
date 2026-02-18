@@ -19,9 +19,9 @@
     {
       "name": "rails",
       "source": "./plugins/rails",
-      "description": "Ruby on Rails development workflows: debugging and performance profiling, test scaffolding with RSpec and FactoryBot, and refactoring patterns for service objects and concerns",
+      "description": "Ruby on Rails development workflows: debugging and performance profiling, test scaffolding with RSpec and FactoryBot, refactoring patterns for service objects and concerns, and guided version upgrades",
       "version": "0.1.0",
-      "keywords": ["ruby", "rails", "rspec", "refactoring", "debugging", "performance", "testing", "factory-bot", "service-objects"]
+      "keywords": ["ruby", "rails", "rspec", "refactoring", "debugging", "performance", "testing", "factory-bot", "service-objects", "upgrade"]
     }
   ]
 }

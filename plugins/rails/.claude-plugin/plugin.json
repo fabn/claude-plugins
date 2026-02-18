@@ -1,10 +1,10 @@
 {
   "name": "rails",
-  "description": "Ruby on Rails development workflows. Includes debugging and performance profiling, test scaffolding with RSpec and FactoryBot, and refactoring patterns for service objects, concerns, and query objects.",
+  "description": "Ruby on Rails development workflows. Includes debugging and performance profiling, test scaffolding with RSpec and FactoryBot, refactoring patterns for service objects, concerns, and query objects, and guided version upgrades.",
   "version": "0.1.0",
   "author": {
     "name": "Fabio Napoleoni",
     "url": "https://github.com/fabn"
   },
-  "keywords": ["ruby", "rails", "rspec", "refactoring", "debugging", "performance", "testing", "factory-bot", "service-objects"]
+  "keywords": ["ruby", "rails", "rspec", "refactoring", "debugging", "performance", "testing", "factory-bot", "service-objects", "upgrade"]
 }
