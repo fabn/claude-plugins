@@ -1,0 +1,10 @@
+{
+  "name": "github",
+  "description": "GitHub workflows: release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Fabio Napoleoni",
+    "url": "https://github.com/fabn"
+  },
+  "keywords": ["github", "release", "release-drafter", "ci", "publish", "gh", "setup"]
+}

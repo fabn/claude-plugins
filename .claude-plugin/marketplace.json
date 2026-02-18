@@ -17,6 +17,13 @@
       "keywords": ["datadog", "terraform", "monitoring", "dashboard", "infrastructure", "metrics", "hcl", "logs", "traces", "apm", "search", "setup"]
     },
     {
+      "name": "github",
+      "source": "./plugins/github",
+      "description": "GitHub workflows: release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI",
+      "version": "0.1.0",
+      "keywords": ["github", "release", "release-drafter", "ci", "publish", "gh", "setup"]
+    },
+    {
       "name": "rails",
       "source": "./plugins/rails",
       "description": "Ruby on Rails development workflows: debugging and performance profiling, test scaffolding with RSpec and FactoryBot, refactoring patterns for service objects and concerns, and guided version upgrades",
