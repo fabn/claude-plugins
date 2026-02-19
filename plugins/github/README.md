@@ -1,14 +1,15 @@
 # GitHub Plugin
 
-GitHub workflows: feature development with branch/commit/PR flow, release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI.
+GitHub workflows: feature development with branch/commit/PR flow, issue and project board management (Epics, sub-issues, triage), release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI.
 
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
-| `/github:setup` | Interactive setup wizard — verifies gh CLI, authentication, MCP token, connectivity, permissions config, and project defaults (7 steps) |
+| `/github:setup` | Interactive setup wizard — verifies gh CLI, authentication, MCP token, connectivity, permissions config, project defaults, and optional project board (8 steps) |
 | `/github:release` | Publish draft releases created by Release Drafter with CI verification |
-| `/github:feature` | Full feature workflow — create branch, stage files, commit, push, and open a PR |
+| `/github:feature` | Full feature workflow — create branch, stage files, commit, push, open a PR, and optionally move linked issues to "In review" |
+| `/github:pm` | Issue and project board management — create issues (Epic/Feature/Task/Bug), expand Epics into sub-issues, triage missing fields, and list board items |
 
 ## Prerequisites
 
@@ -20,6 +21,8 @@ The [GitHub CLI](https://cli.github.com/) must be installed and authenticated:
 brew install gh
 gh auth login --web
 ```
+
+The `gh project` subcommand is part of the standard `gh` CLI — no extra install needed.
 
 ### `GITHUB_MCP_TOKEN`
 
@@ -64,7 +67,13 @@ Run the setup wizard after installing:
 /github:setup
 ```
 
-This walks through 7 steps: verifies all prerequisites, configures project permissions, and writes project defaults to CLAUDE.md. Add `enableAllProjectMcpServers: true` to your project's `.claude/settings.json` so all three MCP servers start automatically.
+This walks through 8 steps: verifies all prerequisites, configures project permissions, writes project defaults to CLAUDE.md, and optionally links a GitHub project board. Add `enableAllProjectMcpServers: true` to your project's `.claude/settings.json` so all three MCP servers start automatically.
+
+To manage issues and the project board:
+
+```
+/github:pm
+```
 
 ## MCP Servers
 
@@ -89,7 +98,8 @@ Interactive setup wizard:
 4. Tests MCP connectivity with a lightweight API call
 5. Configures project permissions (three-tier allow/ask/deny model)
 6. Writes project defaults to CLAUDE.md (main branch, branch prefix)
-7. Reports status summary with next steps
+7. Optionally configures a GitHub project board (`github_project_number`, `github_project_owner`)
+8. Reports status summary with next steps
 
 ### `/github:release`
 
@@ -104,7 +114,7 @@ Publish draft releases created by Release Drafter:
 ### `/github:feature`
 
 Full feature development workflow:
-1. Reads project config from CLAUDE.md (`github_main_branch`, `github_branch_prefix`)
+1. Reads project config from CLAUDE.md (`github_main_branch`, `github_branch_prefix`, `github_project_number`)
 2. Detects current branch and working tree state via Git MCP
 3. Creates or checks out a feature branch (suggests name from description)
 4. Reviews unstaged and staged changes, asks which files to include
@@ -112,7 +122,43 @@ Full feature development workflow:
 6. Pushes branch to remote via `git push -u origin <branch>`
 7. Optionally links related GitHub issues
 8. Creates a pull request with a concise title and body
-9. Reports branch, commit, PR URL, and linked issues
+9. If a project board is configured and issues were linked, offers to move them to "In review"
+10. Reports branch, commit, PR URL, linked issues, and board updates
+
+### `/github:pm`
+
+Issue and project board management — four operations:
+
+**Create Issue:**
+1. Reads project config (board optional)
+2. Detects repo via `gh repo view`
+3. Chooses issue type: Epic / Feature / Task / Bug
+4. Searches for duplicates before proceeding
+5. Collects Title, Body, Priority (required), Size (required), and optional fields
+6. Confirms before creating
+7. Creates issue via GitHub MCP
+8. Adds to project board and sets Priority / Size (if board configured)
+9. Links to parent issue as sub-issue (if provided)
+10. Reports issue URL and board status
+
+**Expand Epic:**
+1. Identifies the Epic by number or search
+2. Reads Epic title, body, and existing sub-issues
+3. Suggests a task breakdown; user confirms, adds, or removes
+4. Previews all sub-issues before creating anything
+5. Creates each sub-issue, links it to the Epic, adds it to the board
+
+**Triage / Fix:**
+1. Fetches open issues
+2. Checks each for missing Priority, Size, parent link, or board membership
+3. Reports a table of findings
+4. Applies fixes after user confirmation
+
+**List / Explore Board:**
+1. Fetches project items (or falls back to `list_issues` if no board configured)
+2. Filters by Status, Priority, assignee, or type (optional)
+3. Presents a table with #, Title, Type, Status, Priority, Size
+4. Offers follow-up actions
 
 ## Project Config
 
@@ -122,6 +168,15 @@ Per-project defaults are stored in the project's `CLAUDE.md` as HTML comments (i
 <!-- github-plugin-config -->
 <!-- github_main_branch: main -->
 <!-- github_branch_prefix: feature -->
+<!-- github_project_number: 2 -->
+<!-- github_project_owner: fabn -->
 ```
 
-Written by `/github:setup` (Step 6), read by `/github:feature` (Step 1).
+| Key | Written by | Read by |
+|-----|-----------|---------|
+| `github_main_branch` | `github:setup` Step 6 | `github:feature` Step 1 |
+| `github_branch_prefix` | `github:setup` Step 6 | `github:feature` Step 1 |
+| `github_project_number` | `github:setup` Step 7 | `github:pm`, `github:feature` Step 8a |
+| `github_project_owner` | `github:setup` Step 7 | `github:pm`, `github:feature` Step 8a |
+
+Field IDs (Priority, Size, Status) are discovered at runtime via `list_project_fields` — not cached — to avoid stale IDs if the project is recreated.

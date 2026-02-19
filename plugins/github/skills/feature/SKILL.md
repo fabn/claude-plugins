@@ -18,8 +18,8 @@ Guides the full feature development workflow: branch → stage → commit → pu
 ## Tools Used
 
 - **Git MCP** (`mcp__git__*`): `git_branch`, `git_status`, `git_diff_unstaged`, `git_diff_staged`, `git_log`, `git_add`, `git_commit`, `git_create_branch`, `git_checkout`
-- **GitHub MCP** (`mcp__github__*`): `create_pull_request`, `search_issues`, `list_issues`
-- **Bash**: `git push -u origin <branch>` (push to remote — NOT `push_files`)
+- **GitHub MCP** (`mcp__github__*`): `create_pull_request`, `search_issues`, `list_issues`, `projects_list`
+- **Bash**: `git push -u origin <branch>` (push to remote — NOT `push_files`); `gh project item-edit` (conditional board update)
 - **Read**: local CLAUDE.md for project config
 - **AskUserQuestion**: confirm branch name, commit message, PR details
 
@@ -38,6 +38,8 @@ Read the project's `CLAUDE.md` (in the current directory) and look for a `<!-- g
 Extract:
 - `github_main_branch` — default `main`
 - `github_branch_prefix` — default `feature`
+- `github_project_number` — optional; used in Step 8a for board status update
+- `github_project_owner` — optional; used in Step 8a for board status update
 
 If no CLAUDE.md or no config block, proceed with defaults silently.
 
@@ -130,6 +132,24 @@ Confirm title and body with AskUserQuestion before creating.
 Call `mcp__github__create_pull_request(owner, repo, title, body, head, base)`.
 
 Do **not** add "Generated with Claude Code" or any attribution to the PR body.
+
+### Step 8a: Update Project Board Status (conditional)
+
+After the PR is created, check both conditions:
+
+1. `github_project_number` is set in CLAUDE.md
+2. At least one issue was linked to the PR in Step 7
+
+If **both conditions are true**, ask via AskUserQuestion:
+
+> "Move linked issue(s) to 'In review' on the project board?"
+
+- **Yes**: For each linked issue, discover the Status field ID via `mcp__github__projects_list` (`list_project_fields`), find the "In review" option ID, and run:
+  ```bash
+  gh project item-edit --project-id <project_id> --id <item_id> --field-id <status_field_id> --single-select-option-id <in_review_option_id>
+  ```
+  Report which issues were updated.
+- **No / either condition false**: Skip silently.
 
 ### Step 9: Summary
 

@@ -155,7 +155,38 @@ Rules:
 - If CLAUDE.md does not exist, create it with just this block
 - Only include keys the user explicitly provided (omit defaults the user did not change if CLAUDE.md already exists)
 
-### Step 7: Summary
+### Step 7: Configure GitHub Project (optional)
+
+Ask via AskUserQuestion: "Do you use a GitHub project board to track issues for this project?"
+
+Options:
+- **Yes, I have an existing project** — proceed to collect project details
+- **No, but I want to create one** — give instructions and exit
+- **Skip — I don't use a project board** — note and move on
+
+**If "Yes, I have an existing project":**
+
+1. Ask for the project number. Accept either a plain number (`2`) or a full URL (`https://github.com/users/<owner>/projects/<N>`) — parse the number from the URL if provided.
+2. Ask for the project owner (default: owner extracted from `git remote get-url origin`).
+3. Validate by calling `mcp__github__projects_list` with `list_project_fields` for the given project — confirm that Status, Priority, and Size fields exist.
+4. Write to CLAUDE.md inside the `<!-- github-plugin-config -->` block:
+
+```markdown
+<!-- github_project_number: 2 -->
+<!-- github_project_owner: fabn -->
+```
+
+**If "No, but I want to create one":**
+
+Explain: "Project creation isn't available via the MCP tools. Create a project from the GitHub kanban template at https://github.com/new/project, then come back and re-run `/github:setup` to register it."
+
+Do not write any project config to CLAUDE.md.
+
+**If "Skip":**
+
+Note: "`/github:pm` will create issues without adding them to a project board." Do not write project config.
+
+### Step 8: Summary
 
 Print a configuration summary:
 
@@ -169,14 +200,16 @@ MCP Connection:      verified (@username)
 Permissions:         written to .claude/settings.json
 Main branch:         main
 Branch prefix:       feature
+Project board:       #2 (fabn)
 
 Next steps:
 - Start a feature: /github:feature
+- Manage issues: /github:pm
 - Publish a release: /github:release
 - Run setup again if anything changes: /github:setup
 ```
 
-Adjust the summary based on what was actually found. For failing items, show the status and the recommended fix.
+Adjust the summary based on what was actually found. Show `Project board: not configured` if the user skipped or declined. For failing items, show the status and the recommended fix.
 
 ## Error Handling
 
@@ -191,8 +224,11 @@ Adjust the summary based on what was actually found. For failing items, show the
 | CLAUDE.md is read-only | Ask user to check file permissions, offer to print config for manual paste |
 | `uvx` not installed (git MCP) | Tell user to install `uv`: `brew install uv` or `pip install uv` |
 | `npx` not available (filesystem MCP) | Tell user to install Node.js and npm |
+| `github_project_number` invalid | `list_project_fields` call fails — show error, ask user to verify the project number |
+| Project fields missing (no Priority/Size) | Warn user the project may not use the standard kanban template; list available fields |
 
 ## Related Skills
 
 - **`/github:feature`** — Create branch, commit, push, and open a PR
 - **`/github:release`** — Publish draft releases created by Release Drafter
+- **`/github:pm`** — Create and manage issues; requires `github_project_number` for board integration

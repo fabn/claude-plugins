@@ -19,9 +19,9 @@
     {
       "name": "github",
       "source": "./plugins/github",
-      "description": "GitHub workflows: feature development with branch/commit/PR flow, release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI.",
-      "version": "0.2.0",
-      "keywords": ["github", "release", "release-drafter", "ci", "publish", "gh", "setup", "git", "feature", "branch", "pr", "pull-request", "workflow", "commit"]
+      "description": "GitHub workflows: feature development with branch/commit/PR flow, issue and project board management (Epics, sub-issues, triage), release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI.",
+      "version": "0.3.0",
+      "keywords": ["github", "release", "release-drafter", "ci", "publish", "gh", "setup", "git", "feature", "branch", "pr", "pull-request", "workflow", "commit", "issue", "epic", "pm", "project-board", "triage", "backlog", "sub-issue"]
     },
     {
       "name": "rails",
