@@ -7,6 +7,16 @@
         "Authorization": "Bearer ${GITHUB_MCP_TOKEN}",
         "X-MCP-Toolsets": "default,projects,actions,labels"
       }
+    },
+    "git": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "${CLAUDE_PROJECT_DIR}"]
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${CLAUDE_PROJECT_DIR}"]
     }
   }
 }

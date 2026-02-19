@@ -19,9 +19,9 @@
     {
       "name": "github",
       "source": "./plugins/github",
-      "description": "GitHub workflows: release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI",
-      "version": "0.1.0",
-      "keywords": ["github", "release", "release-drafter", "ci", "publish", "gh", "setup"]
+      "description": "GitHub workflows: feature development with branch/commit/PR flow, release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI.",
+      "version": "0.2.0",
+      "keywords": ["github", "release", "release-drafter", "ci", "publish", "gh", "setup", "git", "feature", "branch", "pr", "pull-request", "workflow", "commit"]
     },
     {
       "name": "rails",
