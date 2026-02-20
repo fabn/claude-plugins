@@ -11,12 +11,12 @@
     "git": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["mcp-server-git", "--repository", "${CLAUDE_PROJECT_DIR}"]
+      "args": ["mcp-server-git", "--repository", "."]
     },
     "filesystem": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${CLAUDE_PROJECT_DIR}"]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
     }
   }
 }
