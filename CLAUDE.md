@@ -35,9 +35,11 @@ claude-plugins/
 4. Update the plugin's `README.md` (table, getting started, skill details section)
 5. Add new keywords to both `plugins/<plugin>/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 6. Keep `description` fields in sync between plugin.json and marketplace.json
+7. Bump `version` in both `plugin.json` and `marketplace.json` (patch for fixes, minor for new skills)
 
 ## Testing
 
+- Note: `gh` CLI has no `-C` flag (unlike `git -C`); run `gh` commands from the repo directory
 - Test a single plugin: `claude --plugin-dir ./plugins/<name>`
 - Add marketplace locally: `/plugin marketplace add /absolute/path/to/claude-plugins`
 - Install a plugin: `/plugin install <name>@fabn-claude-plugins`
