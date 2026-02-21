@@ -1,6 +1,6 @@
 # GitHub Plugin
 
-GitHub workflows: feature development with branch/commit/PR flow, issue and project board management (Epics, sub-issues, triage), release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI.
+GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI.
 
 ## Skills
 
@@ -9,6 +9,7 @@ GitHub workflows: feature development with branch/commit/PR flow, issue and proj
 | `/github:setup` | Interactive setup wizard — verifies gh CLI, authentication, MCP token, connectivity, permissions config, project defaults, and optional project board (8 steps) |
 | `/github:release` | Publish draft releases created by Release Drafter with CI verification |
 | `/github:feature` | Full feature workflow — create branch, stage files, commit, push, open a PR, and optionally move linked issues to "In review" |
+| `/github:address-review` | Address PR review comments — read, categorize, implement code changes, reply to threads, push, and optionally resolve threads and update the PR description |
 | `/github:pm` | Issue and project board management — create issues (Epic/Feature/Task/Bug), expand Epics into sub-issues, triage missing fields, and list board items |
 
 ## Prerequisites
@@ -75,6 +76,12 @@ To manage issues and the project board:
 /github:pm
 ```
 
+After opening a PR with `/github:feature` and receiving review comments:
+
+```
+/github:address-review
+```
+
 ## MCP Servers
 
 The plugin bundles three MCP servers:
@@ -124,6 +131,15 @@ Full feature development workflow:
 8. Creates a pull request with a concise title and body
 9. If a project board is configured and issues were linked, offers to move them to "In review"
 10. Reports branch, commit, PR URL, linked issues, and board updates
+
+### `/github:address-review`
+
+Address open review comments on a pull request:
+1. Detects the PR for the current branch (or asks for a PR number)
+2. Reads all unresolved review threads and categorizes each as Actionable, Question, Suggestion, or Inaccurate
+3. Presents a table of comments with proposed actions and asks for confirmation before proceeding
+4. Implements code changes (Edit/MultiEdit), stages, and commits with a plain-English message; skips commit if no code changes are needed
+5. Pushes the commit, posts a reply to every comment thread, and optionally resolves threads via GraphQL and updates the PR description
 
 ### `/github:pm`
 
