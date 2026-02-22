@@ -44,7 +44,7 @@ Call `mcp__github__pull_request_read` to fetch:
 - All general PR-level comments
 - Review summaries (CHANGES_REQUESTED, APPROVED, COMMENTED)
 
-Filter to **unresolved** threads only. Ignore comments authored by the PR author (self-comments).
+Filter to **unresolved** threads only.
 
 If `pull_request_read` returns no review threads, fall back to:
 
