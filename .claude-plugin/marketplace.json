@@ -17,6 +17,13 @@
       "keywords": ["datadog", "terraform", "monitoring", "dashboard", "infrastructure", "metrics", "hcl", "logs", "traces", "apm", "search", "setup"]
     },
     {
+      "name": "github",
+      "source": "./plugins/github",
+      "description": "GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI.",
+      "version": "0.4.0",
+      "keywords": ["github", "release", "release-drafter", "ci", "publish", "gh", "setup", "git", "feature", "branch", "pr", "pull-request", "workflow", "commit", "issue", "epic", "pm", "project-board", "triage", "backlog", "sub-issue", "review", "code-review", "pr-review", "address-review", "resolve-comments"]
+    },
+    {
       "name": "rails",
       "source": "./plugins/rails",
       "description": "Ruby on Rails development workflows: debugging and performance profiling, test scaffolding with RSpec and FactoryBot, refactoring patterns for service objects and concerns, and guided version upgrades",
