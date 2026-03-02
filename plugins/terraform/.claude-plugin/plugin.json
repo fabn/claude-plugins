@@ -1,0 +1,10 @@
+{
+  "name": "terraform",
+  "description": "Project-agnostic Terraform operations: plan with safety categorization, apply with confirmation gates and targeted apply, drift detection and resolution.",
+  "version": "0.4.0",
+  "author": {
+    "name": "Fabio Napoleoni",
+    "url": "https://github.com/fabn"
+  },
+  "keywords": ["terraform", "infrastructure", "iac", "plan", "apply", "drift", "aws", "targeted-apply"]
+}

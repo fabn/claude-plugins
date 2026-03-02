@@ -50,7 +50,13 @@ The plugin bundles two MCP servers:
 | `datadog.datadog-mcp` | `datadog-mcp-server` | Metrics, dashboards, monitors, log search, log aggregation |
 | `datadog.datadog-apm` | `@winor30/mcp-server-datadog` | APM trace search and retrieval |
 
-Both servers read credentials from the same `DD_*` environment variables.
+Both servers are driven by the same three `DD_*` environment variables. The `datadog-apm` server uses `DATADOG_*` variable names internally, but the plugin's `.mcp.json` maps these automatically — you only need to set `DD_API_KEY`, `DD_APP_KEY`, and `DD_SITE`.
+
+| You set | Used by `datadog.datadog-mcp` | Used by `datadog.datadog-apm` (mapped internally) |
+|---------|-------------------------------|--------------------------------------------------|
+| `DD_API_KEY` | `DD_API_KEY` | → `DATADOG_API_KEY` |
+| `DD_APP_KEY` | `DD_APP_KEY` | → `DATADOG_APP_KEY` |
+| `DD_SITE` | `DD_SITE` | → `DATADOG_SITE` |
 
 ## Project Configuration
 

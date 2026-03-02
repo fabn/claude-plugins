@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "terraform.terraform-mcp": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/fabn/mcp.git@d9d2a0641f294d00228735e74d4e3553d23965c2#subdirectory=src/terraform-mcp-server",
+        "awslabs.terraform-mcp-server"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
