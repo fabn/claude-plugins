@@ -7,16 +7,39 @@ A collection of Claude Code plugins for monitoring, infrastructure, and developm
 | Plugin | Description | Skills |
 |--------|-------------|--------|
 | [**datadog**](plugins/datadog/) | Datadog monitoring: dashboards, logs, APM traces, metric discovery | `setup`, `dashboard`, `logs`, `traces` |
-| [**rails**](plugins/rails/) | Ruby on Rails development: debugging, testing, refactoring, migrations | `debug`, `test`, `refactor`, `migrate` |
+| [**github**](plugins/github/) | GitHub workflows: issues, PRs, releases, project boards, code review | `setup`, `release`, `feature`, `pm`, `address-review` |
+| [**rails**](plugins/rails/) | Ruby on Rails development: debugging, testing, refactoring, migrations | `debug`, `test`, `refactor`, `migrate`, `upgrade` |
+| [**terraform**](plugins/terraform/) | Terraform infrastructure: plan, drift detection, apply with safety gates | `plan`, `drift`, `apply` |
 
 ## Installation
 
-### From GitHub
+### Interactive (from Claude Code)
 
 ```
 /plugin marketplace add fabn/claude-plugins
-/plugin install datadog@fabn-claude-plugins
-/plugin install rails@fabn-claude-plugins
+/plugin install github@fabn-claude-plugins
+```
+
+### Via settings.json
+
+Add to your `~/.claude/settings.json` (user-level) or `.claude/settings.json` (project-level):
+
+```json
+{
+  "enabledPlugins": {
+    "github@fabn-claude-plugins": true,
+    "terraform@fabn-claude-plugins": true
+  },
+  "extraKnownMarketplaces": {
+    "fabn-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "fabn/claude-plugins"
+      }
+    }
+  },
+  "enableAllProjectMcpServers": true
+}
 ```
 
 ### Local (for development)
