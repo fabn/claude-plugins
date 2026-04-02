@@ -206,6 +206,7 @@ Next steps:
 - Start a feature: /github:feature
 - Manage issues: /github:pm
 - Publish a release: /github:release
+- Set up release-drafter: /github:release-drafter
 - Run setup again if anything changes: /github:setup
 ```
 
@@ -231,4 +232,5 @@ Adjust the summary based on what was actually found. Show `Project board: not co
 
 - **`/github:feature`** — Create branch, commit, push, and open a PR
 - **`/github:release`** — Publish draft releases created by Release Drafter
+- **`/github:release-drafter`** — Configure release-drafter on a repository (fresh setup or v6→v7 migration)
 - **`/github:pm`** — Create and manage issues; requires `github_project_number` for board integration
