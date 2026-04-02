@@ -1,6 +1,6 @@
 # GitHub Plugin
 
-GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), release management with Release Drafter, CI verification, and interactive setup for GitHub MCP server and gh CLI.
+GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), release management with Release Drafter (setup, upgrade, and publishing), CI verification, and interactive setup for GitHub MCP server and gh CLI.
 
 ## Skills
 
@@ -8,6 +8,7 @@ GitHub workflows: feature development with branch/commit/PR flow, addressing PR 
 |-------|-------------|
 | `/github:setup` | Interactive setup wizard — verifies gh CLI, authentication, MCP token, connectivity, permissions config, project defaults, and optional project board (8 steps) |
 | `/github:release` | Publish draft releases created by Release Drafter with CI verification |
+| `/github:release-drafter` | Set up or upgrade release-drafter — versioning strategy, autolabeler, post-release workflow |
 | `/github:feature` | Full feature workflow — create branch, stage files, commit, push, open a PR, and optionally move linked issues to "In review" |
 | `/github:address-review` | Address PR review comments — read, categorize, implement code changes, reply to threads, push, and optionally resolve threads and update the PR description |
 | `/github:pm` | Issue and project board management — create issues (Epic/Feature/Task/Bug), expand Epics into sub-issues, triage missing fields, and list board items |
@@ -82,6 +83,12 @@ After opening a PR with `/github:feature` and receiving review comments:
 /github:address-review
 ```
 
+To set up or upgrade release-drafter on your repository:
+
+```
+/github:release-drafter
+```
+
 ## MCP Servers
 
 The plugin bundles three MCP servers:
@@ -117,6 +124,16 @@ Publish draft releases created by Release Drafter:
 4. Confirms with user before publishing (mandatory)
 5. Publishes with `gh release edit --draft=false`
 6. Reports summary with tag, URL, and changelog
+
+### `/github:release-drafter`
+
+Set up or upgrade release-drafter on any repository:
+1. Detects existing release-drafter setup (none, v6, or v7)
+2. Fresh setup: asks versioning strategy (semver or CalVer), tag prefix, autolabeler opt-in, post-release actions
+3. Shows a summary of files to create and asks for confirmation
+4. Generates config and workflow files from reference templates
+5. Commits all generated files
+6. Upgrade path: detects v6, migrates to v7 (token handling, permissions), preserves existing config
 
 ### `/github:feature`
 
