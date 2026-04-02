@@ -1,6 +1,6 @@
 # GitHub Plugin
 
-GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), release management with Release Drafter (setup, upgrade, and publishing), CI verification, and interactive setup for GitHub MCP server and gh CLI.
+GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, and interactive setup for GitHub MCP server and gh CLI.
 
 ## Skills
 
@@ -11,6 +11,7 @@ GitHub workflows: feature development with branch/commit/PR flow, addressing PR 
 | `/github:release-drafter` | Set up or upgrade release-drafter — versioning strategy, autolabeler, post-release workflow |
 | `/github:feature` | Full feature workflow — create branch, stage files, commit, push, open a PR, and optionally move linked issues to "In review" |
 | `/github:address-review` | Address PR review comments — read, categorize, implement code changes, reply to threads, push, and optionally resolve threads and update the PR description |
+| `/github:actionlint` | Set up actionlint CI — lint GitHub Actions workflow files on push and PR using reviewdog/action-actionlint |
 | `/github:pm` | Issue and project board management — create issues (Epic/Feature/Task/Bug), expand Epics into sub-issues, triage missing fields, and list board items |
 
 ## Prerequisites
@@ -89,6 +90,12 @@ To set up or upgrade release-drafter on your repository:
 /github:release-drafter
 ```
 
+To add actionlint CI for linting GitHub Actions workflows:
+
+```
+/github:actionlint
+```
+
 ## MCP Servers
 
 The plugin bundles three MCP servers:
@@ -134,6 +141,15 @@ Set up or upgrade release-drafter on any repository:
 4. Generates config and workflow files from reference templates
 5. Commits all generated files
 6. Upgrade path: detects v6, migrates to v7 (token handling, permissions), preserves existing config
+
+### `/github:actionlint`
+
+Set up actionlint CI on any repository:
+1. Detects existing actionlint workflow (none or already configured)
+2. Asks target branch and fail level (error or warning)
+3. Shows summary and confirms before writing
+4. Generates `.github/workflows/actionlint.yml` using reviewdog/action-actionlint with auto-detecting reporter
+5. Commits the workflow file
 
 ### `/github:feature`
 
