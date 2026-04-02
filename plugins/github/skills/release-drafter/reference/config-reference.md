@@ -54,6 +54,7 @@ jobs:
   auto_label:
     runs-on: ubuntu-latest
     permissions:
+      contents: read         # job level: required to read config from .github/release-drafter.yml
       pull-requests: write   # job level: required to apply labels
     steps:
       - uses: release-drafter/release-drafter/autolabeler@v7

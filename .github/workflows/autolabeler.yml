@@ -11,6 +11,7 @@ jobs:
   auto_label:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
     steps:
       - uses: release-drafter/release-drafter/autolabeler@v7
