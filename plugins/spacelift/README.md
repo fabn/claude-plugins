@@ -10,7 +10,7 @@ Spacelift CI/CD workflows for Terraform infrastructure management.
 
 ## Prerequisites
 
-- `spacectl` CLI installed (via `mise install spacectl` or [direct download](https://github.com/spacelift-io/spacectl))
+- `spacectl` CLI installed and available in PATH ([installation guide](https://github.com/spacelift-io/spacectl#installation))
 - Environment variables configured:
 
 | Variable | Description |

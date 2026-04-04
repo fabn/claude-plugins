@@ -25,7 +25,7 @@ This skill supports two modes of operation:
 
 ## Prerequisites
 
-- `spacectl` must be installed (via `mise install spacectl` or direct download)
+- `spacectl` must be installed and available in `PATH` ([installation guide](https://github.com/spacelift-io/spacectl#installation))
 - Authentication requires these environment variables:
   - `SPACELIFT_API_KEY_ENDPOINT` — Spacelift instance URL (e.g. `https://mycompany.app.spacelift.io`)
   - `SPACELIFT_API_GITHUB_TOKEN` — GitHub token for Spacelift API auth
@@ -43,7 +43,6 @@ Before executing any operation, check which tools are available:
 1. Use **ToolSearch** with query `spacelift` to discover MCP tools
 2. If MCP tools are found (names starting with `mcp__spacelift_spacectl-mcp__`), use them as primary interface
 3. If MCP tools are NOT available, fall back to CLI commands via Bash:
-   - All `spacectl` commands must be prefixed with: `eval "$(mise activate bash)" && spacectl ...`
    - Verify authentication with `spacectl whoami`
 
 ## Capabilities
@@ -246,8 +245,8 @@ query {
 
 | Situation | Action |
 |-----------|--------|
-| MCP tools not available | Fall back to CLI commands via Bash. Ensure `spacectl` is installed with `mise install spacectl` |
-| spacectl not found | Run `mise install spacectl` to install it |
+| MCP tools not available | Fall back to CLI commands via Bash. Ensure `spacectl` is installed and in PATH |
+| spacectl not found | Install spacectl: see https://github.com/spacelift-io/spacectl#installation |
 | Authentication failure | Check `SPACELIFT_API_GITHUB_TOKEN` and `SPACELIFT_API_KEY_ENDPOINT` env vars |
 | Stack not found | Use `list_stacks` with search to find the correct slug |
 | Run not found | Use `list_stack_runs` or `list_stack_proposed_runs` to verify the run ID |
