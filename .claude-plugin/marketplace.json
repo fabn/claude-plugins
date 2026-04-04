@@ -36,6 +36,13 @@
       "description": "Project-agnostic Terraform operations: plan with safety categorization, apply with confirmation gates and targeted apply, drift detection and resolution.",
       "version": "0.4.0",
       "keywords": ["terraform", "infrastructure", "iac", "plan", "apply", "drift", "aws", "targeted-apply"]
+    },
+    {
+      "name": "spacelift",
+      "source": "./plugins/spacelift",
+      "description": "Spacelift CI/CD workflows for Terraform: stack management, run inspection with log analysis, failure debugging, local previews, dependency tracking, and GraphQL schema exploration.",
+      "version": "0.2.0",
+      "keywords": ["spacelift", "terraform", "infrastructure", "ci-cd", "stacks", "runs", "preview", "logs", "debugging", "graphql"]
     }
   ]
 }
