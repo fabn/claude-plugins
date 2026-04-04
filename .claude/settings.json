@@ -1,0 +1,16 @@
+{
+  "enabledPlugins": {
+    "github@fabn-claude-plugins": true,
+    "claude-md-management@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "plugin-dev@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "fabn-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "fabn/claude-plugins"
+      }
+    }
+  }
+}
