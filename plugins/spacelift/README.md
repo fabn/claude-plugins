@@ -6,7 +6,11 @@ Spacelift CI/CD workflows for Terraform infrastructure management.
 
 | Skill | Description |
 |-------|-------------|
-| `/spacelift:spacelift` | Inspect stacks, read run logs, debug failures, run local previews, manage runs |
+| `/spacelift:status` | List stacks, check status, view dependencies and resources |
+| `/spacelift:logs` | Read run logs, inspect runs, view resource changes |
+| `/spacelift:debug` | Debug failed runs with structured error analysis |
+| `/spacelift:preview` | Run local previews to test changes before pushing |
+| `/spacelift:manage` | Confirm, discard, trigger, retry, and cancel runs |
 
 ## Prerequisites
 
@@ -26,10 +30,10 @@ Spacelift CI/CD workflows for Terraform infrastructure management.
 
 # Then just ask
 > check spacelift status for my stack
+> show me the logs for the last run
 > why did spacelift fail on this PR?
 > run a local preview for stack X
-> list all stacks
-> show me the logs for the last run
+> confirm the pending run on my-stack
 ```
 
 ## MCP Server
@@ -55,7 +59,29 @@ The MCP server exposes 38 tools covering:
 - **GraphQL**: introspect schema, search fields, get type details
 - **Other**: blueprints, spaces, worker pools, API keys
 
-When MCP tools are unavailable, the skill falls back to `spacectl` CLI commands.
+When MCP tools are unavailable, skills fall back to `spacectl` CLI commands.
+
+## Skill Details
+
+### `/spacelift:status`
+
+Lists stacks, shows details, checks stack status after push, and views dependencies. Can also browse resources, contexts, and spaces.
+
+### `/spacelift:logs`
+
+Reads run logs for any run (tracked or proposed). Can find runs by stack, branch, or PR. Shows resource changes and supports pagination for large logs.
+
+### `/spacelift:debug`
+
+Structured debugging workflow for failed runs: identifies the failure, determines which phase failed, fetches logs, parses Terraform errors, and suggests fixes.
+
+### `/spacelift:preview`
+
+Runs local previews: packages local files, uploads to Spacelift, and executes a plan. Supports targeting specific resources and custom environment variables.
+
+### `/spacelift:manage`
+
+Run lifecycle management: confirm pending runs, discard unwanted runs, trigger new deployments, retry failures, and cancel queued runs. Always confirms with user before acting.
 
 ## Environment Setup
 

@@ -41,7 +41,7 @@
       "name": "spacelift",
       "source": "./plugins/spacelift",
       "description": "Spacelift CI/CD workflows for Terraform: stack management, run inspection with log analysis, failure debugging, local previews, dependency tracking, and GraphQL schema exploration.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "keywords": ["spacelift", "terraform", "infrastructure", "ci-cd", "stacks", "runs", "preview", "logs", "debugging", "graphql"]
     }
   ]
