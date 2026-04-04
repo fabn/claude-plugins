@@ -27,7 +27,7 @@ This skill supports two modes of operation:
 
 - `spacectl` must be installed (via `mise install spacectl` or direct download)
 - Authentication requires these environment variables:
-  - `SPACELIFT_API_KEY_ENDPOINT` — Spacelift instance URL (e.g. `https://fabn-business.app.spacelift.io`)
+  - `SPACELIFT_API_KEY_ENDPOINT` — Spacelift instance URL (e.g. `https://mycompany.app.spacelift.io`)
   - `SPACELIFT_API_GITHUB_TOKEN` — GitHub token for Spacelift API auth
 
 ## Tools Used
@@ -43,7 +43,7 @@ Before executing any operation, check which tools are available:
 1. Use **ToolSearch** with query `spacelift` to discover MCP tools
 2. If MCP tools are found (names starting with `mcp__spacelift_spacectl-mcp__`), use them as primary interface
 3. If MCP tools are NOT available, fall back to CLI commands via Bash:
-   - All `spacectl` commands must be prefixed with: `eval "$(mise activate bash)" && SPACELIFT_API_KEY_ENDPOINT=https://fabn-business.app.spacelift.io spacectl ...`
+   - All `spacectl` commands must be prefixed with: `eval "$(mise activate bash)" && spacectl ...`
    - Verify authentication with `spacectl whoami`
 
 ## Capabilities

@@ -15,7 +15,7 @@ Spacelift CI/CD workflows for Terraform infrastructure management.
 
 | Variable | Description |
 |----------|-------------|
-| `SPACELIFT_API_KEY_ENDPOINT` | Spacelift instance URL (e.g. `https://fabn-business.app.spacelift.io`) |
+| `SPACELIFT_API_KEY_ENDPOINT` | Spacelift instance URL (e.g. `https://mycompany.app.spacelift.io`) |
 | `SPACELIFT_API_GITHUB_TOKEN` | GitHub token for Spacelift API authentication |
 
 ## Getting Started
@@ -62,7 +62,7 @@ When MCP tools are unavailable, the skill falls back to `spacectl` CLI commands.
 Add to your shell profile or `.env`:
 
 ```bash
-export SPACELIFT_API_KEY_ENDPOINT=https://your-account.app.spacelift.io
+export SPACELIFT_API_KEY_ENDPOINT=https://mycompany.app.spacelift.io
 export SPACELIFT_API_GITHUB_TOKEN=ghp_your_token_here
 ```
 
@@ -71,7 +71,7 @@ Or configure in Claude Code settings (`~/.claude/settings.local.json`):
 ```json
 {
   "env": {
-    "SPACELIFT_API_KEY_ENDPOINT": "https://your-account.app.spacelift.io",
+    "SPACELIFT_API_KEY_ENDPOINT": "https://mycompany.app.spacelift.io",
     "SPACELIFT_API_GITHUB_TOKEN": "ghp_your_token_here"
   }
 }
