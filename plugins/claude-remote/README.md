@@ -61,7 +61,7 @@ Then run `/claude-remote:setup` inside any repo you want to prepare for Claude C
    ```
 3. Answer the detection confirmation prompts. The skill will create `.claude/scripts/setup.sh`, `.claude/scripts/session-start.sh`, and update `.claude/settings.json`.
 4. Commit and push the generated files.
-5. In the Claude Code web UI at https://claude.ai/code, open your environment settings and paste the contents of `plugins/claude-remote/scripts/user-setup-template.sh` into the **Setup script** field. Set `CLAUDE_CODE_REMOTE=true` in the environment variables.
+5. In the Claude Code web UI at https://claude.ai/code, open your environment settings and paste the contents of `plugins/claude-remote/scripts/user-setup-template.sh` into the **Setup script** field. Add any secrets (DB passwords, API tokens, etc.) the repo needs under **Environment variables** — `CLAUDE_CODE_REMOTE` is a built-in and is automatically set inside SessionStart hooks, so you do not need to set it yourself.
 6. From the repo root locally:
    ```bash
    claude --remote "check-tools"

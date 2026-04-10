@@ -121,17 +121,36 @@ isn't available, fall back to the snippet in the reference file.
 
 ### Step 6: Optional `settings.remote.json`
 
-If the user opted in during Step 2 and the file does not already exist,
-create `.claude/settings.remote.json` with a permissive baseline:
+This file is only useful when the repo's committed `.claude/settings.json`
+contains restrictive entries (`permissions.deny` or `permissions.ask`) that
+would block unattended operation in the sandbox. Check for those first:
 
-```json
-{
-  "permissions": {
-    "allow": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
-    "deny": []
-  }
-}
-```
+1. `Read` the repo's `.claude/settings.json`.
+2. Inspect `permissions.deny` and `permissions.ask`. If **both are empty or
+   absent**, the sandbox can already run unattended — skip this step and do
+   NOT create `settings.remote.json`.
+3. Otherwise, and only if the user opted in during Step 2 and the file does
+   not already exist, create `.claude/settings.remote.json` with a
+   permissive baseline for unattended remote sessions:
+
+   ```json
+   {
+     "permissions": {
+       "allow": ["*"],
+       "deny": [],
+       "ask": []
+     }
+   }
+   ```
+
+   **Important caveat to communicate to the user:** specific `deny` or
+   `ask` entries in the repo's committed `settings.json` are NOT overridden
+   by `"allow": ["*"]`. If a tool is explicitly denied or gated in
+   `settings.json` (e.g. `deny: ["node"]`), it stays denied/gated in the
+   sandbox unless you add an explicit `allow` entry for that exact tool in
+   `settings.remote.json`. Inspect the repo's settings and, for each
+   deny/ask entry, ask the user whether to add a matching explicit allow
+   entry in `settings.remote.json`.
 
 The user-setup script copies this to `settings.local.json` at session
 start, giving the sandbox permissive defaults without touching the
@@ -149,7 +168,10 @@ Tell the user:
    environment. Reference the web-environment doc for full instructions:
    Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/web-environment.md`
    and show the relevant excerpt.
-3. Set `CLAUDE_CODE_REMOTE=true` in the web UI environment variables.
+3. Add any secrets the repo needs (DB credentials, API tokens, etc.) to
+   the web UI **Environment variables** section. Do NOT set
+   `CLAUDE_CODE_REMOTE` — it is a Claude Code built-in and is
+   automatically set inside the SessionStart hook context.
 4. Start a session: `claude --remote "check-tools"` from the repo root.
 5. If anything fails, run `/claude-remote:debug` inside the session.
 

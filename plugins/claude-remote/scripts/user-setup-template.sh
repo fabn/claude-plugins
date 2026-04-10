@@ -69,6 +69,8 @@ echo "[3/3] Delegating to repository setup..."
 
 if [ -x "$REPO_SETUP" ]; then
   echo "  Running $REPO_SETUP ..."
+  # Child stdout/stderr inherit the exec-tee redirect at the top of this
+  # script, so everything the repo script emits lands in $LOG automatically.
   "$REPO_SETUP"
 else
   echo "  No repo setup script found under /home/user/, skipping"

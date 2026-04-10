@@ -41,16 +41,13 @@ The web UI's **Environment variables** section is the only place to put
 secrets (DB passwords, API tokens, etc.) since no secrets store exists yet.
 Format is `.env`-style, one `KEY=value` per line, no quotes.
 
-Minimum variables you typically need:
+Add DB credentials, API keys, and any other secrets the repo needs here.
 
-```
-CLAUDE_CODE_REMOTE=true
-```
-
-`CLAUDE_CODE_REMOTE=true` is what gates `session-start.sh` so it only runs
-in cloud sessions, not locally.
-
-Add DB credentials, API keys, and any other secrets here as needed.
+> **Do not set `CLAUDE_CODE_REMOTE` yourself.** It is a Claude Code
+> built-in, automatically set to `true` inside the SessionStart hook
+> context in cloud sessions. The `session-start.sh` gate
+> `[ "${CLAUDE_CODE_REMOTE:-}" != "true" ] && exit 0` relies on that
+> built-in to skip local execution — no manual configuration required.
 
 ## 4. Network access
 

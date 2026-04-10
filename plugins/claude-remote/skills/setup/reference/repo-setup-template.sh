@@ -11,12 +11,12 @@ set -euo pipefail
 # Canonical reference for the user-level script:
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh
 #
-# Logs to /tmp/claude-user-setup.log (same file the user-level script uses),
-# so /claude-remote:debug has a single log to diagnose either layer.
+# When invoked by the user-level script, stdout/stderr are already captured
+# to /tmp/claude-user-setup.log via that script's exec-tee (inherited fds).
+# If you run this script standalone for debugging, pipe it yourself:
+#   bash .claude/scripts/setup.sh 2>&1 | tee -a /tmp/claude-user-setup.log
 # =============================================================================
 
-LOG="/tmp/claude-user-setup.log"
-exec > >(tee -a "$LOG") 2>&1
 echo "=== Repo setup started at $(date -Iseconds) ==="
 
 # Ensure mise shims are on PATH for this non-interactive shell.
@@ -37,6 +37,8 @@ if [ -f Gemfile ]; then
   echo "[repo] bundle install..."
   bundle config set --local path vendor/bundle
   bundle install --jobs=4 --retry=3
+  # Reshim so new gem-provided binaries (e.g. rails, rspec) are on PATH
+  command -v mise >/dev/null 2>&1 && mise reshim || true
 fi
 # __END:ruby__
 
@@ -58,6 +60,8 @@ if [ -f package.json ]; then
     echo "[repo] npm ci..."
     npm ci
   fi
+  # Reshim so new npm-provided binaries are on PATH
+  command -v mise >/dev/null 2>&1 && mise reshim || true
 fi
 # __END:node__
 
