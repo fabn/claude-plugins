@@ -156,13 +156,44 @@ The user-setup script copies this to `settings.local.json` at session
 start, giving the sandbox permissive defaults without touching the
 locally-restrictive `settings.json`.
 
-### Step 7: Print next steps
+### Step 7: Offer to write CLAUDE.md verify hint (optional)
+
+Ask the user via `AskUserQuestion` whether to add a short instruction
+to the repo's `CLAUDE.md` telling Claude to run `/claude-remote:verify`
+at the start of every cloud session. This is **opt-in** — do NOT write
+it without confirmation.
+
+If the user agrees:
+
+1. Read the repo's `CLAUDE.md` (create it if it doesn't exist).
+2. Check whether a `<!-- claude-remote-plugin -->` marker is already
+   present. If yes, leave the file alone — it's already configured.
+3. Otherwise append this block at the end of the file:
+
+   ```markdown
+   <!-- claude-remote-plugin -->
+   ## Claude Code on the web
+
+   When running inside a Claude Code web (cloud) session (`CLAUDE_CODE_REMOTE=true`),
+   before acting on the user's first request, run `/claude-remote:verify` to
+   confirm the environment is ready (runtimes installed, services up). If
+   verify reports failures, do not proceed with the task — follow its
+   recommendation to run `/claude-remote:debug` for a full diagnosis.
+   ```
+
+4. Tell the user what was added and remind them to commit `CLAUDE.md`
+   together with the other generated files.
+
+If the user declines: skip silently.
+
+### Step 8: Print next steps
 
 Tell the user:
 
 1. Commit and push the new files: `.claude/scripts/setup.sh`,
-   `.claude/scripts/session-start.sh`, `.claude/settings.json`, and
-   (if created) `.claude/settings.remote.json`.
+   `.claude/scripts/session-start.sh`, `.claude/settings.json`,
+   `CLAUDE.md` (if updated in Step 7), and (if created)
+   `.claude/settings.remote.json`.
 2. Paste the contents of `${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh`
    into the Claude Code web UI's **Setup script** field for the target
    environment. Reference the web-environment doc for full instructions:
@@ -173,9 +204,11 @@ Tell the user:
    `CLAUDE_CODE_REMOTE` — it is a Claude Code built-in and is
    automatically set inside the SessionStart hook context.
 4. Start a session: `claude --remote "check-tools"` from the repo root.
-5. If anything fails, run `/claude-remote:debug` inside the session.
+5. At the start of the session, run `/claude-remote:verify` to confirm
+   the environment is ready. If anything fails, run `/claude-remote:debug`
+   for a full diagnosis.
 
-### Step 8: Local verification
+### Step 9: Local verification
 
 Run:
 

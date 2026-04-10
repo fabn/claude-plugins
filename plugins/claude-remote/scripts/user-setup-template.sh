@@ -55,7 +55,10 @@ fi
 # ── mise ──────────────────────────────────────────────────────────
 echo "[2/4] Installing mise..."
 if ! command -v mise >/dev/null 2>&1; then
-  curl -fsSL https://mise.run | sh
+  # Retry on transient failures (mise.run has returned 503 during bootstrap).
+  # --retry-all-errors covers HTTP 5xx; default curl --retry only covers
+  # transport-level errors.
+  curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors https://mise.run | sh
 
   export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 

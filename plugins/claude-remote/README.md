@@ -6,7 +6,8 @@ Configure and diagnose [Claude Code on the web](https://code.claude.com/docs/en/
 
 | Skill | Description |
 |-------|-------------|
-| `/claude-remote:setup` | Detect the project stack (Ruby/Rails, Node, Python, mise, databases), generate `.claude/scripts/setup.sh` and `.claude/scripts/session-start.sh`, and merge the claude-remote marketplace + plugin + SessionStart hook into `.claude/settings.json`. Prints next-step instructions for pasting the canonical user-level script into the web UI. |
+| `/claude-remote:setup` | Detect the project stack (Ruby/Rails, Node, Python, mise, databases), generate `.claude/scripts/setup.sh` and `.claude/scripts/session-start.sh`, and merge the claude-remote marketplace + plugin + SessionStart hook into `.claude/settings.json`. Optionally proposes a `CLAUDE.md` snippet that tells Claude to run `/claude-remote:verify` at the start of every cloud session. Prints next-step instructions for pasting the canonical user-level script into the web UI. |
+| `/claude-remote:verify` | Quick happy-path check at the start of a cloud session. Parses the generated `setup.sh` and `session-start.sh` to derive the expected toolset dynamically (runtimes, services, package managers), runs a fast battery of health probes, and offers to chain into `/claude-remote:debug` on failure. Read-only — never modifies files. |
 | `/claude-remote:debug` | Read `/tmp/claude-user-setup.log`, audit repo-side files, compare deployed user-setup script against the canonical version bundled with this plugin, match log patterns to known failure modes, and print a concrete fix. Can optionally invoke the bundled `debug-environment.sh` script for a full environment dump when cheap pattern-matching is inconclusive. |
 
 ## How it works
@@ -66,7 +67,15 @@ Then run `/claude-remote:setup` inside any repo you want to prepare for Claude C
    ```bash
    claude --remote "check-tools"
    ```
-7. If anything goes wrong, inside the session run:
+7. At the start of the cloud session, run:
+   ```
+   /claude-remote:verify
+   ```
+   to confirm the environment is ready. If any check fails, verify will
+   offer to chain into `/claude-remote:debug` automatically. You can also
+   let `/claude-remote:setup` write a `CLAUDE.md` snippet that tells
+   Claude to invoke verify at the start of every cloud session.
+8. If anything goes wrong, inside the session run:
    ```
    /claude-remote:debug
    ```

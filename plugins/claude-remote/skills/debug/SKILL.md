@@ -114,19 +114,23 @@ UI is stale and needs re-pasting.
 
 ### Step 7: Live health check (only if inside a remote session)
 
-If `CLAUDE_CODE_REMOTE=true` in the current environment, re-run the
-health checks that `session-start.sh` performs:
+If `CLAUDE_CODE_REMOTE=true` in the current environment, derive the
+expected toolset the same way `/claude-remote:verify` does (by grepping
+`session-start.sh` for `ISSUES+=("... missing|down")` assertions) and
+run each check. This is the single most informative step if the log
+pattern matching in Step 4 didn't produce a clear answer.
 
-```bash
-command -v mise ruby bundle node npm
-mysqladmin ping --silent 2>&1 || echo "mysql down"
-pg_isready -q 2>&1 || echo "postgres down"
-redis-cli ping 2>&1 || echo "redis down"
+If `/claude-remote:verify` is available in the current session, you
+can also invoke it directly via the Skill tool — it performs exactly
+this derivation and tabulation:
+
+```
+Skill("claude-remote:verify")
 ```
 
-Compare to what `session-start.sh` last reported (`SETUP INCOMPLETE: ...`
-line in the log). If anything regressed since session start, that's a
-mid-session service crash — not a setup bug.
+Then compare the result against what `session-start.sh` last reported
+(`SETUP INCOMPLETE: ...` line in the log). If anything regressed since
+session start, that's a mid-session service crash — not a setup bug.
 
 ### Step 8: Full environment dump (optional, only when earlier steps are inconclusive)
 

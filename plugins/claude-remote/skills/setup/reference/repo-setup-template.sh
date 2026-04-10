@@ -17,7 +17,18 @@ set -euo pipefail
 #   bash .claude/scripts/setup.sh 2>&1 | tee -a /tmp/claude-user-setup.log
 # =============================================================================
 
+# The user-level setup script invokes this file without cd-ing into the repo,
+# so $PWD is whatever the caller had (typically /home/user). Without moving
+# into the repo root, mise cannot see the repo's mise.toml and silently
+# reports "all tools are installed" while actually installing nothing, which
+# then cascades into every subsequent step being a no-op or failing because
+# the expected runtimes are not on PATH. Always cd first.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$REPO_ROOT"
+
 echo "=== Repo setup started at $(date -Iseconds) ==="
+echo "  repo: $REPO_ROOT"
 
 # Ensure mise shims are on PATH for this non-interactive shell.
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
@@ -26,8 +37,11 @@ export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 # Runtime versions from mise.toml / .tool-versions
 if command -v mise >/dev/null 2>&1; then
   echo "[repo 1] mise install..."
-  mise trust "$PWD" 2>/dev/null || true
+  mise trust "$REPO_ROOT" 2>/dev/null || true
   mise install
+  # Reshim so any newly-installed mise-managed binaries (fvm, lefthook,
+  # typst, etc.) land on PATH for the subsequent steps.
+  mise reshim || true
 fi
 # __END:mise__
 
