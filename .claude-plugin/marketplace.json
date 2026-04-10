@@ -47,9 +47,9 @@
     {
       "name": "claude-remote",
       "source": "./plugins/claude-remote",
-      "description": "Configure and diagnose Claude Code on the web (cloud sessions): generate per-repo setup scripts, SessionStart hooks, and settings.json wiring, plus log-driven debugging of failed remote bootstraps.",
-      "version": "0.1.0",
-      "keywords": ["claude-remote", "claude-code-on-the-web", "web", "cloud", "remote", "setup", "bootstrap", "session-start", "hooks", "sandbox", "debug", "diagnose", "mise"]
+      "description": "Configure, verify, and diagnose Claude Code on the web (cloud sessions): generate per-repo setup scripts, SessionStart hooks, and settings.json wiring, run a fast readiness check at session start, plus log-driven debugging of failed remote bootstraps.",
+      "version": "0.2.0",
+      "keywords": ["claude-remote", "claude-code-on-the-web", "web", "cloud", "remote", "setup", "bootstrap", "session-start", "hooks", "sandbox", "verify", "health-check", "ready", "debug", "diagnose", "mise"]
     }
   ]
 }
