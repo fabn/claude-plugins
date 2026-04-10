@@ -22,6 +22,10 @@ LOG="/tmp/claude-user-setup.log"
 exec > >(tee -a "$LOG") 2>&1
 echo "=== User setup started at $(date -Iseconds) ==="
 
+# ── VM fingerprint (cheap diagnostic, one-time) ──────────────────
+echo "  host: $(uname -srm) | user: $(whoami) | home: $HOME"
+[ -f /etc/os-release ] && . /etc/os-release && echo "  os: ${PRETTY_NAME:-unknown}"
+
 # ── Permissive settings for sandboxed environment ────────────────
 echo "[1/4] Installing permissive settings..."
 
@@ -34,10 +38,18 @@ REPO_SETUP="$(find /home/user -maxdepth 4 -path '*/.claude/scripts/setup.sh' 2>/
 
 if [ -n "$REPO_SETUP" ]; then
   REPO_DIR="$(dirname "$(dirname "$(dirname "$REPO_SETUP")")")"
+  echo "  Found repo setup: $REPO_SETUP"
   if [ -f "$REPO_DIR/.claude/settings.remote.json" ]; then
     cp "$REPO_DIR/.claude/settings.remote.json" "$REPO_DIR/.claude/settings.local.json"
     echo "  Installed .claude/settings.local.json from settings.remote.json"
   fi
+else
+  # Diagnostic: if no repo setup script was discovered, dump the top of
+  # /home/user so /claude-remote:debug can see where the repo actually
+  # landed (common failure: cloned under /home/user/workspace/<repo>).
+  echo "  WARN: no .claude/scripts/setup.sh found under /home/user (maxdepth 4)"
+  echo "  /home/user directory tree (depth 4):"
+  find /home/user -maxdepth 4 -type d 2>/dev/null | head -20 | sed 's/^/    /'
 fi
 
 # ── mise ──────────────────────────────────────────────────────────

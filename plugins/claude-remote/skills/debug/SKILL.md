@@ -128,7 +128,34 @@ Compare to what `session-start.sh` last reported (`SETUP INCOMPLETE: ...`
 line in the log). If anything regressed since session start, that's a
 mid-session service crash — not a setup bug.
 
-### Step 8: Summarize
+### Step 8: Full environment dump (optional, only when earlier steps are inconclusive)
+
+If Steps 3–7 haven't pinpointed the root cause — e.g. the log shows all
+markers but something still doesn't work, or the failure mode doesn't
+match any pattern in `troubleshooting.md` — run the bundled environment
+dump script for a comprehensive snapshot:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/debug-environment.sh"
+```
+
+This tees a full report to `/tmp/claude-env-debug.log` covering identity,
+PATH, tool versions, running services, listening ports, `CLAUDE_ENV_FILE`
+contents, `mise ls`/`mise settings`, shell init files, and the tail of
+`/tmp/claude-user-setup.log`. Read the output and look for:
+
+- Missing runtimes that should have been installed in the setup phase
+- Services listed in the expected ports list but not present
+- `CLAUDE_ENV_FILE` unset or empty (PATH persistence block of
+  `session-start.sh` didn't run)
+- `mise ls` showing versions different from `mise.toml`
+- Shell init files missing the `mise activate bash` line
+
+Skip this step on quick/obvious failures — it produces ~200 lines of
+output and should only be invoked when the cheap pattern-matching above
+hasn't been enough.
+
+### Step 9: Summarize
 
 Produce a structured report:
 
