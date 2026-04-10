@@ -1,0 +1,26 @@
+{
+  "extraKnownMarketplaces": {
+    "fabn-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "fabn/claude-plugins"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "claude-remote@fabn-claude-plugins": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/scripts/session-start.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

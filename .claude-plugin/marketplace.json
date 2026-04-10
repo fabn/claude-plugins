@@ -43,6 +43,13 @@
       "description": "Spacelift CI/CD workflows for Terraform: stack management, run inspection with log analysis, failure debugging, local previews, dependency tracking, and GraphQL schema exploration.",
       "version": "0.2.0",
       "keywords": ["spacelift", "terraform", "infrastructure", "ci-cd", "stacks", "runs", "preview", "logs", "debugging", "graphql"]
+    },
+    {
+      "name": "claude-remote",
+      "source": "./plugins/claude-remote",
+      "description": "Configure and diagnose Claude Code on the web (cloud sessions): generate per-repo setup scripts, SessionStart hooks, and settings.json wiring, plus log-driven debugging of failed remote bootstraps.",
+      "version": "0.1.0",
+      "keywords": ["claude-remote", "claude-code-on-the-web", "web", "cloud", "remote", "setup", "bootstrap", "session-start", "hooks", "sandbox", "debug", "diagnose", "mise"]
     }
   ]
 }
