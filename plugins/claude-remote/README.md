@@ -7,17 +7,17 @@ Configure and diagnose [Claude Code on the web](https://code.claude.com/docs/en/
 | Skill | Description |
 |-------|-------------|
 | `/claude-remote:setup` | Detect the project stack (Ruby/Rails, Node, Python, mise, databases), generate `.claude/scripts/setup.sh` and `.claude/scripts/session-start.sh`, and merge the claude-remote marketplace + plugin + SessionStart hook into `.claude/settings.json`. Prints next-step instructions for pasting the canonical user-level script into the web UI. |
-| `/claude-remote:debug` | Read `/tmp/claude-user-setup.log`, audit repo-side files, compare deployed user-setup script against the canonical version bundled with this plugin, match log patterns to known failure modes, and print a concrete fix. |
+| `/claude-remote:debug` | Read `/tmp/claude-user-setup.log`, audit repo-side files, compare deployed user-setup script against the canonical version bundled with this plugin, match log patterns to known failure modes, and print a concrete fix. Can optionally invoke the bundled `debug-environment.sh` script for a full environment dump when cheap pattern-matching is inconclusive. |
 
 ## How it works
 
 A working cloud session needs three cooperating pieces:
 
-1. **User-level setup script** pasted into the Claude Code web UI environment's "Setup script" field. It installs cross-project tooling (mise, permissive settings), then discovers the per-repo script and delegates to it. The canonical version lives at `plugins/claude-remote/scripts/user-setup-template.sh` inside this plugin — **this file is the source of truth**, any future changes are made here first, then re-pasted into the web UI.
+1. **User-level setup script** pasted into the Claude Code web UI environment's "Setup script" field. It installs cross-project tooling (mise, `gh`, `jq`), writes permissive sandbox settings, logs a VM fingerprint for diagnostics, then discovers the per-repo script and delegates to it. The canonical version lives at `plugins/claude-remote/scripts/user-setup-template.sh` inside this plugin — **this file is the source of truth**, any future changes are made here first, then re-pasted into the web UI.
 2. **Per-repo `.claude/scripts/setup.sh`** — runs on new sessions, installs repo-specific deps (`bundle install`, `npm ci`, etc.) and starts required services.
 3. **Per-repo `.claude/scripts/session-start.sh`** — runs on every session (including resumes) via a `SessionStart` hook. Keeps services up and persists mise-managed `PATH` to `$CLAUDE_ENV_FILE` so every Bash tool call inherits the right environment.
 
-All three log to `/tmp/claude-user-setup.log` so `/claude-remote:debug` has a single source of truth to diagnose either layer.
+All three log to `/tmp/claude-user-setup.log` so `/claude-remote:debug` has a single source of truth to diagnose either layer. A separate `debug-environment.sh` script bundled with the plugin can be invoked on demand for a full environment snapshot (identity, PATH, tool versions, services, mise state, shell init files) — output goes to `/tmp/claude-env-debug.log`.
 
 ## Enabling the plugin
 
