@@ -26,6 +26,7 @@ claude-plugins/
 3. Optionally add `.mcp.json` for bundled MCP servers
 4. Add skills under `plugins/<name>/skills/<skill-name>/SKILL.md`
 5. Update `.claude-plugin/marketplace.json` to include the new plugin in the `plugins` array
+6. Add a row for the plugin to the root `README.md` "Available Plugins" table (alphabetical order), mirroring the description and skills list
 
 ## Adding a New Skill to an Existing Plugin
 
@@ -44,6 +45,7 @@ claude-plugins/
 - Add marketplace locally: `/plugin marketplace add /absolute/path/to/claude-plugins`
 - Install a plugin: `/plugin install <name>@fabn-claude-plugins`
 - Validate structure: `claude plugin validate .`
+- Pre-commit smoke check: `bash -n <script.sh>` for every shell script touched, `jq . <file.json> > /dev/null` for every JSON file touched
 
 ## Conventions
 
@@ -53,6 +55,7 @@ claude-plugins/
 - SKILL.md body follows: intro → reference pointer → tools used → numbered workflow steps → error handling table → reference files section
 - MCP server names in `.mcp.json` should be namespaced to avoid collision (e.g., `datadog.datadog-mcp`)
 - All env vars required by MCP servers should be documented in the README
+- Bundled scripts shared across skills live at `plugins/<name>/scripts/` (invoked as `${CLAUDE_PLUGIN_ROOT}/scripts/<file>`); skill-specific scripts stay under `plugins/<name>/skills/<skill>/scripts/`
 
 ## Documentation
 
