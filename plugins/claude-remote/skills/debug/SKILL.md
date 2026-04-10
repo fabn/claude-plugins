@@ -65,9 +65,10 @@ tail -n 500 /tmp/claude-user-setup.log 2>&1 || echo "LOG_MISSING"
 Grep for the canonical marker lines:
 
 - `=== User setup started at`
-- `[1/3] Installing permissive settings`
-- `[2/3] Installing mise`
-- `[3/3] Delegating to repository setup`
+- `[1/4] Installing permissive settings`
+- `[2/4] Installing mise`
+- `[3/4] Installing common CLI tools`
+- `[4/4] Delegating to repository setup`
 - `=== User setup complete at`
 - `=== Repo setup started at`
 - `=== Repo setup complete at`

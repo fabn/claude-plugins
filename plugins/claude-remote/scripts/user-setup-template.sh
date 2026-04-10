@@ -23,7 +23,7 @@ exec > >(tee -a "$LOG") 2>&1
 echo "=== User setup started at $(date -Iseconds) ==="
 
 # ── Permissive settings for sandboxed environment ────────────────
-echo "[1/3] Installing permissive settings..."
+echo "[1/4] Installing permissive settings..."
 
 # The project .claude/settings.json has restrictive permissions for local
 # interactive use. In the sandboxed web environment there's no risk,
@@ -41,7 +41,7 @@ if [ -n "$REPO_SETUP" ]; then
 fi
 
 # ── mise ──────────────────────────────────────────────────────────
-echo "[2/3] Installing mise..."
+echo "[2/4] Installing mise..."
 if ! command -v mise >/dev/null 2>&1; then
   curl -fsSL https://mise.run | sh
 
@@ -64,8 +64,15 @@ mise settings ruby.compile=false
 # Skip GitHub attestation verification (rate-limited without auth token)
 mise settings ruby.github_attestations=false
 
+# ── Common CLI tools (gh, jq) ────────────────────────────────────
+# gh is NOT pre-installed on Claude web VMs; jq IS pre-installed. apt-get
+# is idempotent so we just ask for both — already-installed is a no-op.
+echo "[3/4] Installing common CLI tools (gh, jq)..."
+apt-get update -qq
+apt-get install -y -qq gh jq
+
 # ── Delegate to repository setup ─────────────────────────────────
-echo "[3/3] Delegating to repository setup..."
+echo "[4/4] Delegating to repository setup..."
 
 if [ -x "$REPO_SETUP" ]; then
   echo "  Running $REPO_SETUP ..."
