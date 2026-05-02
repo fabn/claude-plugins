@@ -106,6 +106,17 @@ Grep for install commands and add matching `command -v` checks:
 - `mise install` → ensure `mise` is on PATH AND, if `mise.toml` or
   `.tool-versions` exists in the repo, run `mise ls --current` and
   verify each listed runtime has a resolvable binary
+- **`mise.lock` presence (rate-limit guard)** — if the repo has
+  `mise.toml` or `.tool-versions`, also check whether `mise.lock`
+  exists. If missing, emit a **WARN row** (not FAIL) labeled
+  `mise.lock` with detail "missing — cloud session may rate-limit on
+  GitHub API; run `mise lock --platform linux-x64,macos-arm64` locally
+  and commit the lockfile". This is informational: setup may still work
+  on a fresh VM but is fragile. If `setup.sh` greps as using
+  `mise install --locked` and the lockfile is missing, escalate the
+  WARN: the strict mode invocation will fall back to plain
+  `mise install` per the template's safety net, but the user should
+  fix it.
 
 **Deduplication**: if a tool appears in multiple layers, keep a single
 entry; Layer A wins on label wording.
@@ -118,6 +129,9 @@ Execute each check with a short timeout (~3 seconds per probe). Collect
 - **PASS**: check exit code 0, capture version output when cheap
   (`<tool> --version | head -1`)
 - **FAIL**: non-zero exit; capture stderr or a one-line reason
+- **WARN**: advisory finding that doesn't block work — e.g.
+  `mise.lock` missing. Reported in the table but does not count
+  toward the FAIL set in Step 6.
 - **SKIP**: user-declined or unknown probe
 
 Run checks in parallel where possible (pure `command -v` probes can all
@@ -136,9 +150,10 @@ Claude Remote Verify — <repo name>
   PASS  fvm        4.0.5
   PASS  flutter    3.24.3 (via fvm)
   PASS  postgres   accepting connections
+  WARN  mise.lock  missing — run 'mise lock --platform linux-x64,macos-arm64' locally
   FAIL  redis      Could not connect to Redis at 127.0.0.1:6379
 
-5/6 checks passed
+5/6 checks passed (1 warning)
 ```
 
 Append a last-run indicator from `/tmp/claude-user-setup.log`:

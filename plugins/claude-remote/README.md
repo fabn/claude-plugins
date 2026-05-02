@@ -6,7 +6,7 @@ Configure and diagnose [Claude Code on the web](https://code.claude.com/docs/en/
 
 | Skill | Description |
 |-------|-------------|
-| `/claude-remote:setup` | Detect the project stack (Ruby/Rails, Node, Python, mise, databases), generate `.claude/scripts/setup.sh` and `.claude/scripts/session-start.sh`, and merge the claude-remote marketplace + plugin + SessionStart hook into `.claude/settings.json`. Optionally proposes a `CLAUDE.md` snippet that tells Claude to run `/claude-remote:verify` at the start of every cloud session. Prints next-step instructions for pasting the canonical user-level script into the web UI. |
+| `/claude-remote:setup` | Detect the project stack (Ruby/Rails, Node, Python, mise, databases), generate `.claude/scripts/setup.sh` and `.claude/scripts/session-start.sh`, and merge the claude-remote marketplace + plugin + SessionStart hook into `.claude/settings.json`. Walks the user through generating `mise.lock` for cloud platforms (`linux-x64`) to avoid GitHub API rate limits. Optionally proposes adding `[deps.bundler] auto = true` for Ruby projects. Optionally proposes a `CLAUDE.md` snippet that tells Claude to run `/claude-remote:verify` at the start of every cloud session. On re-run with existing scripts, saves `.bak` files and regenerates from the latest template (upgrade mode). Prints next-step instructions for pasting the canonical user-level script into the web UI. |
 | `/claude-remote:verify` | Quick happy-path check at the start of a cloud session. Parses the generated `setup.sh` and `session-start.sh` to derive the expected toolset dynamically (runtimes, services, package managers), runs a fast battery of health probes, and offers to chain into `/claude-remote:debug` on failure. Read-only — never modifies files. |
 | `/claude-remote:debug` | Read `/tmp/claude-user-setup.log`, audit repo-side files, compare deployed user-setup script against the canonical version bundled with this plugin, match log patterns to known failure modes, and print a concrete fix. Can optionally invoke the bundled `debug-environment.sh` script for a full environment dump when cheap pattern-matching is inconclusive. |
 
@@ -19,6 +19,23 @@ A working cloud session needs three cooperating pieces:
 3. **Per-repo `.claude/scripts/session-start.sh`** — runs on every session (including resumes) via a `SessionStart` hook. Keeps services up and persists mise-managed `PATH` to `$CLAUDE_ENV_FILE` so every Bash tool call inherits the right environment.
 
 All three log to `/tmp/claude-user-setup.log` so `/claude-remote:debug` has a single source of truth to diagnose either layer. A separate `debug-environment.sh` script bundled with the plugin can be invoked on demand for a full environment snapshot (identity, PATH, tool versions, services, mise state, shell init files) — output goes to `/tmp/claude-env-debug.log`.
+
+### mise lockfile and rate limits
+
+Cloud sandboxes are unauthenticated; an unguarded `mise install` resolves `latest` and GitHub-backed backends through `api.github.com` and frequently hits the anonymous rate limit. The generated `setup.sh` calls `mise install --locked` when `mise.lock` is present, which uses the URLs and checksums pinned in the lockfile and skips the API. To benefit from this, generate the lockfile locally with:
+
+```bash
+mise lock --platform linux-x64,macos-arm64
+git add mise.lock
+```
+
+The cross-platform invocation matters: cloud sessions run on `linux-x64`. A lockfile generated only on macOS will not contain the URLs the sandbox needs, and `--locked` will fall back to plain `mise install`. `/claude-remote:setup` walks you through this; `/claude-remote:verify` reports a `WARN` when `mise.lock` is missing.
+
+**Do not** set `[settings] locked = true` inside `mise.toml` — that flag has *global* scope and applies strict mode to your `~/.config/mise/config.toml`, breaking unrelated tools. The per-command `--locked` flag in the generated `setup.sh` is the correct scope.
+
+### Upgrading an existing setup
+
+Re-running `/claude-remote:setup` on a repo that already has `.claude/scripts/setup.sh` is supported. The skill detects the existing files, saves `.bak` copies, and regenerates from the current template. This is the recommended path to pick up new features (e.g. the `mise install --locked` flow added in v0.3.0) without manual editing.
 
 ## Enabling the plugin
 
