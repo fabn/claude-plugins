@@ -22,20 +22,32 @@ All three log to `/tmp/claude-user-setup.log` so `/claude-remote:debug` has a si
 
 ### mise lockfile and rate limits
 
-Cloud sandboxes are unauthenticated; an unguarded `mise install` resolves `latest` and GitHub-backed backends through `api.github.com` and frequently hits the anonymous rate limit. The generated `setup.sh` calls `mise install --locked` when `mise.lock` is present, which uses the URLs and checksums pinned in the lockfile and skips the API. To benefit from this, generate the lockfile locally with:
+Cloud sandboxes are unauthenticated; an unguarded `mise install` resolves `latest` and GitHub-backed backends through `api.github.com` and frequently hits the anonymous rate limit. When `mise.lock` is present, mise [automatically prefers](https://mise.jdx.dev/dev-tools/mise-lock.html) the URLs and checksums pinned in the lockfile over the version ranges in `mise.toml` and skips the API — no `--locked` flag needed in `setup.sh`. To benefit from this, generate the lockfile locally with:
 
 ```bash
 mise lock --platform linux-x64,macos-arm64
 git add mise.lock
 ```
 
-The cross-platform invocation matters: cloud sessions run on `linux-x64`. A lockfile generated only on macOS will not contain the URLs the sandbox needs, and `--locked` will fall back to plain `mise install`. `/claude-remote:setup` walks you through this; `/claude-remote:verify` reports a `WARN` when `mise.lock` is missing.
+The cross-platform invocation matters: cloud sessions run on `linux-x64`. A lockfile generated only on macOS will not contain the URLs the sandbox needs, so install will silently fall back to GitHub API resolution and risk rate-limiting. `/claude-remote:setup` walks you through this; `/claude-remote:verify` reports a `WARN` when `mise.lock` is missing.
 
-**Do not** set `[settings] locked = true` inside `mise.toml` — that flag has *global* scope and applies strict mode to your `~/.config/mise/config.toml`, breaking unrelated tools. The per-command `--locked` flag in the generated `setup.sh` is the correct scope.
+To make the lockfile contract enforceable, the skill also recommends `[settings] locked = true` in `mise.toml`. This flips mise into strict mode at project scope: any tool that lacks a lockfile entry for the current platform fails fast instead of silently re-resolving via the GitHub API. Caveat: per the [mise docs](https://mise.jdx.dev/dev-tools/mise-lock.html), `[settings] locked = true` in a project `mise.toml` also applies to tools you've configured in `~/.config/mise/config.toml`. If you have global tools, run `mise lock -g` once locally so they keep installing cleanly. Cloud sessions are unaffected — they have no user-level mise config.
+
+### `.tool-versions` + `mise.toml` layout
+
+`mise lock` only generates entries from `.tool-versions` if a sibling
+`mise.toml` exists. Two layouts are supported:
+
+| Layout | When to use |
+|---|---|
+| `.tool-versions` + `mise.toml` + `mise.lock` (hybrid) | CI uses `actions/setup-node@v4` (or similar) with `node-version-file: '.tool-versions'`. `mise.toml` holds env vars, tasks, and `[settings] locked = true`. Tool versions stay in `.tool-versions` for backward compatibility. |
+| `mise.toml` (with `[tools]`) + `mise.lock` only | Cleanest single-source-of-truth setup. CI uses `jdx/mise-action@v2` instead of `actions/setup-*`. No `.tool-versions` to drift. |
+
+If your repo has only `.tool-versions`, `/claude-remote:setup` will offer to add a minimal `mise.toml` stub before generating the lockfile.
 
 ### Upgrading an existing setup
 
-Re-running `/claude-remote:setup` on a repo that already has `.claude/scripts/setup.sh` is supported. The skill detects the existing files, saves `.bak` copies, and regenerates from the current template. This is the recommended path to pick up new features (e.g. the `mise install --locked` flow added in v0.3.0) without manual editing.
+Re-running `/claude-remote:setup` on a repo that already has `.claude/scripts/setup.sh` is supported. The skill detects the existing files, saves `.bak` copies, and regenerates from the current template. This is the recommended path to pick up new features (e.g. the simplified mise lockfile flow with `[settings] locked = true` added in v0.3.1) without manual editing.
 
 ## Enabling the plugin
 

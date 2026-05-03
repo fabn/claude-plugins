@@ -67,8 +67,12 @@ Run these detections in parallel:
   - `pyproject.toml` / `requirements.txt` → Python (prefer `uv` if `uv.lock` present)
   - `go.mod` → Go
   - `composer.json` → PHP
-- **Version manager**: `mise.toml` or `.tool-versions` → mise block included
+- **Version manager**: `mise.toml` is the canonical mise tool source. `.tool-versions` ALONE is **not** enough — `mise lock` only generates entries from `.tool-versions` when a sibling `mise.toml` exists (even one with no `[tools]` section; an `[env]` or `[tasks]` section is enough). Detect three layouts:
+  - `mise.toml` present (with or without `.tool-versions`) → mise block included; lockfile flow viable.
+  - `.tool-versions` present, `mise.toml` missing → mise block included BUT raise the issue in Step 2 so the user can opt into a `mise.toml` stub before lockfile generation.
+  - Neither → no mise block.
 - **mise lockfile**: presence of `mise.lock` (matters for cloud rate-limit avoidance — see Step 5)
+- **mise strict mode**: grep `mise.toml` for `[settings]` containing `locked = true` (matters for Step 5 proposal)
 - **mise bundler provider**: grep `mise.toml` for `[deps.bundler]` (matters for Step 6 proposal)
 - **Services** — look at `config/database.yml`, `docker-compose.yml`, `docker-compose.*.yml`, `.env.example`:
   - `adapter: mysql2` or `mysql:` image → MySQL
@@ -78,7 +82,12 @@ Run these detections in parallel:
 - **Prior setup** (upgrade-mode detection):
   - `.claude/scripts/setup.sh` exists → upgrade scenario
   - `.claude/scripts/session-start.sh` exists → upgrade scenario
-  - Read the existing `setup.sh` and check whether it contains `mise install --locked` (new) or only `mise install` (legacy). The legacy pattern is the main reason a user re-runs this skill.
+  - Read the existing `setup.sh` and check the mise invocation pattern. Three eras to recognise:
+    - **v0.2 era** — bare `mise install` with no lockfile guard or warn. Vulnerable to GitHub API rate limits.
+    - **v0.3 era** — `mise install --locked` with a fallback to plain `mise install`. Works, but the `--locked` flag is redundant once `mise.lock` is present (mise auto-prefers locked versions) and forces a fallback path that defeats fail-fast on missing lockfile entries.
+    - **v0.4 era (current)** — plain `mise install` with a `mise.lock`-missing warn block, paired with `[settings] locked = true` in `mise.toml` to enforce strict mode at project scope. This is what the current template generates.
+
+    Both v0.2 and v0.3 are reasons to re-run this skill.
 
 Do NOT write anything yet.
 
@@ -90,6 +99,11 @@ Use `AskUserQuestion` to present the detected stack and let the user correct it:
 - Services detected (checkboxes, pre-selected)
 - Services the user wants to add manually
 - Whether to create `.claude/settings.remote.json` (permissive fallback for the sandbox)
+- **If `.tool-versions` exists but `mise.toml` does not** (from Step 1): ask the user how to proceed before Step 5 generates the lockfile. Two valid layouts:
+  - **Hybrid** (recommended for repos whose CI uses `actions/setup-node@v4` or similar with `node-version-file: '.tool-versions'`): create a minimal `mise.toml` stub alongside `.tool-versions`. The stub holds env vars, tasks, and the `[settings] locked = true` flag (Step 5); tool versions stay in `.tool-versions` for backward compatibility. `mise lock` reads `.tool-versions` once `mise.toml` is its sibling.
+  - **Single source of truth** (recommended for repos that use `jdx/mise-action@v2` in CI): migrate `.tool-versions` content into `[tools]` inside `mise.toml`, drop `.tool-versions`, and update CI workflows accordingly. The skill does NOT do the CI migration for the user — only flags it.
+
+  If the user is unsure or wants to defer, default to the hybrid layout (lower-risk, no CI changes required) and include `[settings] locked = true` per Step 5.
 - **If upgrade-mode (Step 1 found existing scripts)**: confirm "Regenerate `.claude/scripts/setup.sh` and `.claude/scripts/session-start.sh` from the latest template?" with the explanation: the skill saves a `.bak` of each existing file before overwriting. If the user declines, skip Steps 3–4 and continue with the lockfile / bundler / settings steps so they still benefit from the parts of the upgrade that don't touch the scripts.
 
 ### Step 3: Generate `.claude/scripts/setup.sh`
@@ -114,19 +128,30 @@ Same procedure with `session-start-template.sh`. Keep:
 
 If the file already exists, save a `.bak` first. Then `chmod +x` and `bash -n`.
 
-### Step 5: mise lockfile (skip if no `mise.toml` and no `.tool-versions`)
+### Step 5: mise lockfile and strict mode (skip if no `mise.toml` and no `.tool-versions`)
 
-The `__SECTION:mise__` block in the generated `setup.sh` calls
-`mise install --locked` when `mise.lock` is present. Without the lockfile,
-`mise install` falls back to GitHub API calls for `latest` resolution and
-GitHub-backed backends — cloud sessions are unauthenticated and frequently
-hit the rate limit. So if Step 1 detected a mise config but **no
-`mise.lock`**, walk the user through generating one:
+The `__SECTION:mise__` block in the generated `setup.sh` calls plain
+`mise install`. Per the [official docs](https://mise.jdx.dev/dev-tools/mise-lock.html),
+when `mise.lock` is present mise automatically prefers the locked URLs
+and checksums over the version ranges in `mise.toml` — no `--locked`
+flag needed. Without the lockfile, mise falls back to GitHub API calls
+for `latest` resolution and GitHub-backed backends — cloud sessions are
+unauthenticated and frequently hit the rate limit. To make this contract
+enforceable, this skill recommends two complementary changes:
+
+#### 5a. Generate `mise.lock` (if missing)
+
+If Step 1 detected a mise config but **no `mise.lock`**:
 
 1. Tell the user: cloud sessions run on `linux-x64`; the lockfile must
    contain URLs for that platform. If the user develops on macOS,
    pre-populating both platforms is required.
-2. Offer (`AskUserQuestion`) to run the generator now via Bash:
+2. Pre-condition: the lockfile flow needs `mise.toml`. If only
+   `.tool-versions` is present and Step 2 deferred the layout decision,
+   create the `mise.toml` stub now (default to hybrid layout from Step 2)
+   before invoking `mise lock` — otherwise it errors with
+   `! No tools configured to lock`.
+3. Offer (`AskUserQuestion`) to run the generator now via Bash:
    ```bash
    mise lock --platform linux-x64,macos-arm64
    ```
@@ -136,13 +161,43 @@ hit the rate limit. So if Step 1 detected a mise config but **no
    - If `mise` is missing locally or the user declines → print the exact
      command and tell them to run it before pushing. Do NOT block the
      rest of the workflow.
-3. **Do not recommend `[settings] locked = true` inside `mise.toml`.** That
-   flag enables strict mode at *global* scope (it applies to the user's
-   `~/.config/mise/config.toml` too) and breaks tools outside this repo.
-   The skill's generated `setup.sh` already passes `--locked` per-command,
-   which is the correct scope.
 4. If `mise.lock` already exists, just confirm it's committed (warn if
    `git ls-files --error-unmatch mise.lock` fails) and move on.
+
+#### 5b. Recommend `[settings] locked = true` in `mise.toml`
+
+Strict mode is what makes the cloud-session lockfile contract
+enforceable. Without it, a future tool bump that misses `mise lock`
+regeneration silently falls back to GitHub API resolution and the next
+unauthenticated cloud session rate-limits. Propose adding it via
+`AskUserQuestion` (opt-in, default Yes) unless Step 1 already detected
+the section in `mise.toml`.
+
+If the user accepts, append to `mise.toml` using `Edit`:
+
+```toml
+[settings]
+# Require mise.lock to contain pre-resolved URLs/checksums for the current
+# platform on every `mise install`. Regenerate after bumping versions:
+#   mise lock --platform linux-x64,macos-arm64
+locked = true
+```
+
+**Document the scope caveat to the user before they accept** (per the
+mise docs: *"Setting locked = true in a project's mise.toml applies to
+all tool resolution, including tools from your global
+~/.config/mise/config.toml"*):
+
+> When you `cd` into this project locally, mise will also enforce
+> strict mode on tools you've configured in `~/.config/mise/config.toml`.
+> If you have global tools, run `mise lock -g` once to generate a global
+> lockfile (`~/.config/mise/mise.lock`) so they keep installing
+> cleanly. Cloud sessions are unaffected — they have no user-level mise
+> config.
+
+If the user declines: leave `mise.toml` untouched and warn that without
+strict mode a missed `mise lock` regeneration will silently rate-limit
+the next cloud session.
 
 ### Step 6: mise bundler deps provider (Ruby + `mise.toml` only)
 
@@ -300,5 +355,7 @@ Report all green or the first failure.
 | `mise.toml` present but no runtime detected | Warn that mise will still install but nothing is tied to it; proceed |
 | MySQL detected | Warn that MySQL isn't pre-installed on the web VM; the generated setup.sh will `apt-get install mysql-server`, which adds startup time |
 | `mise lock` not on PATH locally during Step 5 | Print the command and ask the user to install mise locally first, or skip lockfile generation and continue (cloud sessions will still work but may rate-limit) |
-| `mise.lock` exists but only contains macOS URLs | Tell the user to re-run `mise lock --platform linux-x64,macos-arm64` so the cloud session can use `--locked` strict mode |
+| `mise lock` errors with `! No tools configured to lock` | The repo has only `.tool-versions` and no `mise.toml`. Loop back to Step 2 and create the `mise.toml` stub (hybrid layout) before retrying. |
+| `mise.lock` exists but only contains macOS URLs | Tell the user to re-run `mise lock --platform linux-x64,macos-arm64` so the cloud session has `linux-x64` URLs to install from. With `[settings] locked = true` (Step 5b), the next install will fail fast on missing entries instead of silently rate-limiting. |
+| User accepts `[settings] locked = true` but already has tools in `~/.config/mise/config.toml` without a global lockfile | Suggest running `mise lock -g` once locally so global tools keep installing cleanly. Cloud sessions are unaffected. |
 | Existing `setup.sh.bak` already present (second upgrade run) | Overwrite it without asking — it's a transient artifact |

@@ -36,24 +36,21 @@ export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 # __SECTION:mise__
 # Runtime versions from mise.toml / .tool-versions.
 #
-# Prefer `mise install --locked` when mise.lock is present: lockfile pins
-# download URLs + checksums and avoids GitHub API calls (which rate-limit
-# unauthenticated cloud-session traffic). Generate the lockfile locally
-# with `mise lock --platform linux-x64,macos-arm64` and commit it.
+# When mise.lock is present, plain `mise install` automatically prefers the
+# locked URLs/checksums over version ranges in mise.toml — no `--locked`
+# flag needed. With `[settings] locked = true` in mise.toml, strict mode is
+# enforced automatically (install fails fast on missing lockfile entries
+# instead of silently falling back to GitHub API resolution and hitting
+# the rate limit on unauthenticated cloud sessions). Generate the lockfile
+# locally with `mise lock --platform linux-x64,macos-arm64` and commit it.
 if command -v mise >/dev/null 2>&1; then
   mise trust "$REPO_ROOT" 2>/dev/null || true
-  if [ -f "$REPO_ROOT/mise.lock" ]; then
-    echo "[repo] mise install --locked..."
-    if ! mise install --locked; then
-      echo "[repo] WARN: --locked failed (lockfile may be missing linux-x64 URLs); retrying without --locked"
-      mise install
-    fi
-  else
+  if [ ! -f "$REPO_ROOT/mise.lock" ]; then
     echo "[repo] WARN: mise.lock missing — install will hit GitHub API and may rate-limit."
     echo "[repo]       Run 'mise lock --platform linux-x64,macos-arm64' locally and commit mise.lock."
-    echo "[repo] mise install..."
-    mise install
   fi
+  echo "[repo] mise install..."
+  mise install
   # Reshim so any newly-installed mise-managed binaries (fvm, lefthook,
   # typst, etc.) land on PATH for the subsequent steps.
   mise reshim || true
