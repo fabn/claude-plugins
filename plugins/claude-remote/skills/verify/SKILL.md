@@ -112,11 +112,17 @@ Grep for install commands and add matching `command -v` checks:
   `mise.lock` with detail "missing — cloud session may rate-limit on
   GitHub API; run `mise lock --platform linux-x64,macos-arm64` locally
   and commit the lockfile". This is informational: setup may still work
-  on a fresh VM but is fragile. If `setup.sh` greps as using
-  `mise install --locked` and the lockfile is missing, escalate the
-  WARN: the strict mode invocation will fall back to plain
-  `mise install` per the template's safety net, but the user should
-  fix it.
+  on a fresh VM but is fragile. If `mise.toml` greps as containing
+  `[settings]` with `locked = true` and `mise.lock` is missing,
+  escalate the WARN with detail "strict mode is enabled but the
+  lockfile is missing — the next `mise install` will fail fast" so the
+  user fixes it before the next cloud session.
+- **`[settings] locked = true` in `mise.toml`** — if the repo has
+  `mise.toml` and the section is absent, emit a **WARN row** labeled
+  `mise.locked` with detail "missing — install will silently fall back
+  to GitHub API resolution if `mise.lock` lacks an entry; run
+  `/claude-remote:setup` to add `[settings] locked = true`". Skip the
+  warn if the section is present.
 
 **Deduplication**: if a tool appears in multiple layers, keep a single
 entry; Layer A wins on label wording.

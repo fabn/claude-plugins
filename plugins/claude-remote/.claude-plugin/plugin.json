@@ -1,7 +1,7 @@
 {
   "name": "claude-remote",
   "description": "Configure, verify, and diagnose Claude Code on the web (cloud sessions): generate per-repo setup scripts, SessionStart hooks, and settings.json wiring, run a fast readiness check at session start, plus log-driven debugging of failed remote bootstraps.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": {
     "name": "Fabio Napoleoni",
     "url": "https://github.com/fabn"
