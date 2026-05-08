@@ -18,10 +18,12 @@ Guides the full feature development workflow: branch → stage → commit → pu
 ## Tools Used
 
 - **Git MCP** (`mcp__git__*`): `git_branch`, `git_status`, `git_diff_unstaged`, `git_diff_staged`, `git_log`, `git_add`, `git_commit`, `git_create_branch`, `git_checkout`
-- **GitHub MCP** (`mcp__github__*`): `create_pull_request`, `search_issues`, `list_issues`, `projects_list`
+- **GitHub MCP** (`mcp__plugin_github_github__*` when this plugin's bundled GitHub MCP server is active): `create_pull_request`, `search_issues`, `list_issues`, `projects_list`
 - **Bash**: `git push -u origin <branch>` (push to remote — NOT `push_files`); `gh project item-edit` (conditional board update)
 - **Read**: local CLAUDE.md for project config
 - **AskUserQuestion**: confirm branch name, commit message, PR details
+
+> **MCP server name may differ.** The prefix `mcp__plugin_github_github__` is used when this plugin's bundled GitHub MCP server is active. If the host project ships its own GitHub MCP server (often `mcp__github__*`), the bundled one may be disabled to avoid conflicts — discover the actual prefix from the available tool list and substitute it. Verb names are unchanged.
 
 ## Workflow
 
@@ -111,7 +113,7 @@ git push -u origin <branch-name>
 
 Ask via AskUserQuestion: "Do you want to link this PR to any issues?"
 
-- **Yes**: Use `mcp__github__search_issues` or `mcp__github__list_issues` to find open issues. Show a short list and ask the user to confirm which ones to link.
+- **Yes**: Use `mcp__plugin_github_github__search_issues` or `mcp__plugin_github_github__list_issues` to find open issues. Show a short list and ask the user to confirm which ones to link.
 - **No / skip**: Proceed without issue links
 
 Collect confirmed issue numbers for the PR body.
@@ -129,7 +131,7 @@ Collect:
 
 Confirm title and body with AskUserQuestion before creating.
 
-Call `mcp__github__create_pull_request(owner, repo, title, body, head, base)`.
+Call `mcp__plugin_github_github__create_pull_request(owner, repo, title, body, head, base)`.
 
 Do **not** add "Generated with Claude Code" or any attribution to the PR body.
 
@@ -144,7 +146,7 @@ If **both conditions are true**, ask via AskUserQuestion:
 
 > "Move linked issue(s) to 'In review' on the project board?"
 
-- **Yes**: For each linked issue, discover the Status field ID via `mcp__github__projects_list` (`list_project_fields`), find the "In review" option ID, and run:
+- **Yes**: For each linked issue, discover the Status field ID via `mcp__plugin_github_github__projects_list` (`list_project_fields`), find the "In review" option ID, and run:
   ```bash
   gh project item-edit --project-id <project_id> --id <item_id> --field-id <status_field_id> --single-select-option-id <in_review_option_id>
   ```
