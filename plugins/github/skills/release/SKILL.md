@@ -37,7 +37,7 @@ Run `gh repo view --json owner,name` to get the current repository's owner and n
 Use the GitHub MCP tool to list recent releases:
 
 ```
-mcp__github__list_releases(owner, repo, perPage: 10)
+mcp__plugin_github_github__list_releases(owner, repo, perPage: 10)
 ```
 
 Search the results for releases with `draft: true`.

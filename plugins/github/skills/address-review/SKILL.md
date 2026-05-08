@@ -17,12 +17,14 @@ Guides the full "address review" loop for an open pull request: reads all unreso
 
 ## Tools Used
 
-- **GitHub MCP** (`mcp__github__*`): `pull_request_read`, `add_reply_to_pull_request_comment`, `pull_request_review_write`, `update_pull_request`
+- **GitHub MCP** (`mcp__plugin_github_github__*` when this plugin's bundled GitHub MCP server is active): `pull_request_read`, `add_reply_to_pull_request_comment`, `pull_request_review_write`, `update_pull_request`
 - **Git MCP** (`mcp__git__*`): `git_status`, `git_diff_unstaged`, `git_diff_staged`, `git_add`, `git_commit`, `git_branch`
 - **Bash**: `gh pr view`, `git push`, `gh api` (GraphQL for resolving threads)
 - **Read**: source files to understand context; CLAUDE.md for `github_main_branch`
 - **Edit / MultiEdit**: implement code changes from review comments
 - **AskUserQuestion**: confirm per-comment action plan, confirm commit message, confirm before pushing, confirm thread resolution
+
+> **MCP server name may differ.** The prefix `mcp__plugin_github_github__` is used when this plugin's bundled GitHub MCP server is active. If the host project ships its own GitHub MCP server (often `mcp__github__*`), the bundled one may be disabled to avoid conflicts — discover the actual prefix from the available tool list and substitute it. Verb names are unchanged.
 
 ## Workflow
 
@@ -35,11 +37,11 @@ gh pr view --json number,title,url,body,headRefName,baseRefName
 ```
 
 - **PR found**: Show title and URL, proceed to Step 2.
-- **No PR for this branch**: Ask via AskUserQuestion for the PR number or URL. Call `mcp__github__pull_request_read` with the provided number to load it.
+- **No PR for this branch**: Ask via AskUserQuestion for the PR number or URL. Call `mcp__plugin_github_github__pull_request_read` with the provided number to load it.
 
 ### Step 2: Read Review Comments
 
-Call `mcp__github__pull_request_read` to fetch:
+Call `mcp__plugin_github_github__pull_request_read` to fetch:
 - All inline review threads (file path + line number + comment body + thread node ID)
 - All general PR-level comments
 - Review summaries (CHANGES_REQUESTED, APPROVED, COMMENTED)
@@ -124,7 +126,7 @@ Skip this step if no commit was made in Step 6.
 
 ### Step 8: Reply to Each Comment
 
-For every comment in the confirmed plan, post a reply via `mcp__github__add_reply_to_pull_request_comment`:
+For every comment in the confirmed plan, post a reply via `mcp__plugin_github_github__add_reply_to_pull_request_comment`:
 
 | Comment type | Reply text |
 |-------------|-----------|
@@ -153,7 +155,7 @@ If any comment suggested updating the PR title or description, or if the impleme
 1. Show the current title and body.
 2. Propose updated versions.
 3. Confirm with AskUserQuestion.
-4. Update via `mcp__github__update_pull_request(owner, repo, pull_number, title?, body?)`.
+4. Update via `mcp__plugin_github_github__update_pull_request(owner, repo, pull_number, title?, body?)`.
 
 Skip this step if no description changes are warranted.
 

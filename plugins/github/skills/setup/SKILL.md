@@ -19,10 +19,13 @@ Interactive setup wizard for the GitHub plugin. Verifies `gh` CLI installation, 
 ## Tools Used
 
 - **Bash**: Check `gh` CLI version and authentication status; parse remote URL
+- **GitHub MCP** (`mcp__plugin_github_github__*` when this plugin's bundled GitHub MCP server is active): `get_me`, `projects_list`
 - **ToolSearch**: Discover GitHub MCP tools and verify connectivity
 - **Read**: Read CLAUDE.md for existing config
 - **Write / Edit**: Write project defaults to CLAUDE.md
 - **AskUserQuestion**: Guide user through fixing issues and collecting config values
+
+> **MCP server name may differ.** The prefix `mcp__plugin_github_github__` is used when this plugin's bundled GitHub MCP server is active. If the host project ships its own GitHub MCP server (often `mcp__github__*`), the bundled one may be disabled to avoid conflicts — discover the actual prefix from the available tool list and substitute it (in tool calls **and** in the permissions block recommended in Step 5). Verb names are unchanged.
 
 ## Workflow
 
@@ -73,7 +76,7 @@ Use `ToolSearch("github")` to discover GitHub MCP tools.
 Attempt a lightweight MCP call to confirm the token works:
 
 ```
-mcp__github__get_me()
+mcp__plugin_github_github__get_me()
 ```
 
 - **If successful**: Report the authenticated GitHub user and proceed
@@ -90,7 +93,7 @@ Explain the three tiers:
 
 - **`allow`** — auto-approved without prompting: filesystem reads + git read-only operations + staging and branch creation (low risk, high frequency)
 - **`ask`** — prompts before executing: commit, checkout, reset, and all `git` Bash commands that modify history or sync with remote
-- **`deny`** — blocked entirely: Bash versions of `git add`, `git commit`, `git checkout`, and `git reset` are denied because MCP tools exist for all of them — this forces Claude to use the MCP tool consistently. The user may also add `mcp__github__push_files` here to prevent accidental use; the `github:feature` skill always uses `git push` via Bash instead since `push_files` does not update the local working copy.
+- **`deny`** — blocked entirely: Bash versions of `git add`, `git commit`, `git checkout`, and `git reset` are denied because MCP tools exist for all of them — this forces Claude to use the MCP tool consistently. The user may also add `mcp__plugin_github_github__push_files` here to prevent accidental use; the `github:feature` skill always uses `git push` via Bash instead since `push_files` does not update the local working copy.
 
 Recommended `.claude/settings.json` (or `.claude/settings.local.json` for personal-only overrides):
 
@@ -168,7 +171,7 @@ Options:
 
 1. Ask for the project number. Accept either a plain number (`2`) or a full URL (`https://github.com/users/<owner>/projects/<N>`) — parse the number from the URL if provided.
 2. Ask for the project owner (default: owner extracted from `git remote get-url origin`).
-3. Validate by calling `mcp__github__projects_list` with `list_project_fields` for the given project — confirm that Status, Priority, and Size fields exist.
+3. Validate by calling `mcp__plugin_github_github__projects_list` with `list_project_fields` for the given project — confirm that Status, Priority, and Size fields exist.
 4. Write to CLAUDE.md inside the `<!-- github-plugin-config -->` block:
 
 ```markdown

@@ -16,10 +16,12 @@ Project management workflow for GitHub issues and project boards. Supports four 
 
 ## Tools Used
 
-- **GitHub MCP** (`mcp__github__*`): `issue_write`, `issue_read`, `list_issues`, `search_issues`, `list_issue_types`, `projects_list`, `projects_get`, `projects_write`, `sub_issue_write`
-- **Bash**: `gh project item-add`, `gh project item-edit`, `gh repo view`
+- **GitHub MCP** (`mcp__plugin_github_github__*` when this skill ships its bundled GitHub MCP server): `issue_write`, `issue_read`, `list_issues`, `search_issues`, `list_issue_types`, `projects_list`, `projects_get`, `projects_write`, `sub_issue_write`
+- **Bash**: `gh repo view` (and `gh` GraphQL / `gh project` as fallback only — see Troubleshooting)
 - **AskUserQuestion**: collect issue fields, choose operation, confirm before creating
 - **Read**: CLAUDE.md for project config (`github_project_number`, `github_project_owner`)
+
+> **MCP server name may differ.** The tool prefix `mcp__plugin_github_github__` is the one used by the GitHub MCP bundled with this plugin. If the host project ships its own GitHub MCP server (e.g. `mcp__github__*` or another custom name), the bundled one may be disabled to avoid conflicts. Discover the actual prefix at runtime by looking at the available tool list, then substitute it everywhere below. The verb names (`issue_write`, `projects_list`, …) are the same across implementations.
 
 ## Config
 
@@ -74,7 +76,7 @@ Ask via AskUserQuestion:
 
 ### Step 4: Search for Duplicates
 
-Before collecting fields, call `mcp__github__search_issues` with key words from the user's initial description to detect potential duplicates.
+Before collecting fields, call `mcp__plugin_github_github__search_issues` with key words from the user's initial description to detect potential duplicates.
 
 - If duplicates are found: show them and ask "Is this the same issue, or should I proceed with a new one?"
 - If no duplicates or user confirms to proceed: continue
@@ -86,8 +88,9 @@ Gather issue details via AskUserQuestion (ask in batches, not one field at a tim
 **Always required:**
 - **Title** — imperative phrase, Title Case, no ALL CAPS (e.g., "Add Avatar Upload to User Profile")
 - **Body** — problem description + acceptance criteria; no implementation code
-- **Priority** (required): P0 / P1 / P2
-- **Size** (required): XS / S / M / XL
+- **Priority** (required): typically P0 / P1 / P2 — discover the actual options by calling `mcp__plugin_github_github__projects_list` with `list_project_fields` and reading the `Priority` single-select options. Do NOT hardcode the list.
+- **Size** (required): typically XS / S / M / L / XL — discover the actual options the same way (the `Size` single-select on the project may include or omit specific buckets). Do NOT hardcode the list.
+- **Status** (defaults to `Backlog`): also a single-select on the project board. Set explicitly so the new item lands in the correct column instead of inheriting the project default.
 
 **Conditional:**
 - **Milestone** — optional; prompt for Epics
@@ -100,30 +103,25 @@ Show a preview of the issue and ask the user to confirm via AskUserQuestion befo
 
 ### Step 7: Create Issue
 
-Call `mcp__github__issue_write` to create the issue with the collected title and body.
+1. If the repo's organization has issue types configured, call `mcp__plugin_github_github__list_issue_types` to get the valid type names (e.g. `Epic`, `Feature`, `Task`, `Bug`). Map the user's choice from Step 3 to the exact type name returned (case-sensitive).
+2. Call `mcp__plugin_github_github__issue_write` with `method: "create"`, `owner`, `repo`, `title`, `body`, and `type: <chosen>` if the org supports issue types (omit otherwise — passing `type` to a repo without configured types fails).
+3. Capture both the new issue's `number` (for sub-issue parent linking from another issue) and the `id` field (the **global numeric ID**, used as `sub_issue_id` when this issue is linked as a child of a parent). Both are returned in the response.
 
 ### Step 8: Add to Project Board (if configured)
 
 If `github_project_number` is set:
 
-1. Add the issue to the project:
-   ```bash
-   gh project item-add <project_number> --owner <owner> --url <issue_url>
-   ```
-   Capture the returned `item-id` from the output.
+1. Add the issue to the project via `mcp__plugin_github_github__projects_write` with `method: "add_project_item"`, `owner`, `project_number`, `item_type: "issue"`, `item_owner` + `item_repo` (the issue's repo, may differ from the project's org), and `issue_number`. The response includes the new project item's `id` (a node-id-style string like `PVTI_…`).
 
-2. Discover field IDs — call `mcp__github__projects_list` with `list_project_fields` to get the node IDs for Priority and Size fields (do NOT cache these — discover fresh each time).
+2. Discover field IDs and option IDs — call `mcp__plugin_github_github__projects_list` with `list_project_fields`. For each single-select field (Status, Priority, Size) capture **both** representations from the response: the numeric `id` (e.g. `341154587`, used by `update_project_item`) and the `node_id` / option `id` strings (used by `gh project item-edit` if you fall back to the CLI). Do NOT cache these across runs — discover fresh each time.
 
-3. Set Priority:
-   ```bash
-   gh project item-edit --project-id <project_id> --id <item_id> --field-id <priority_field_id> --single-select-option-id <option_id>
-   ```
+3. Set Status (default `Backlog`), Priority and Size via `mcp__plugin_github_github__projects_write` with `method: "update_project_item"`, passing `project_number`, `owner`, the project item's `item_id`, and `updated_field: { id: <field_numeric_id>, value: <option_id_or_value> }` — one call per field.
 
-4. Set Size using the same pattern.
+4. **Fallback (only if MCP `update_project_item` fails)**: use `gh project item-edit --project-id <project_node_id> --id <item_node_id> --field-id <field_node_id> --single-select-option-id <option_id>` — this uses node-id strings throughout, so reach for the `node_id` values you captured in step 2.
 
 ### Step 9: Link Sub-Issue to Parent (if parent provided)
 
-If the user specified a parent issue number, call `mcp__github__sub_issue_write` to link this issue as a sub-issue of the parent.
+If the user specified a parent issue number, call `mcp__plugin_github_github__sub_issue_write` to link this issue as a sub-issue of the parent. Pass `owner` / `repo` / `issue_number` of the **parent**, and `sub_issue_id` = the **global numeric ID** of the new child (the `id` field returned by `issue_write` / `issue_read`, e.g. `4405308405` — *not* its `issue_number`). Because the child is identified by its global ID, this works **cross-repo** within the same org (e.g. parent in `org/aleteia-next`, child in `org/aleteia-wp`) — no GraphQL fallback needed.
 
 ### Step 10: Summary
 
@@ -138,11 +136,11 @@ Report:
 
 ### Step 1: Identify Epic
 
-Ask the user for an Epic issue number, or search `mcp__github__search_issues` with `is:open` plus a label or type filter to find Epics. Present matches and ask the user to confirm which Epic to expand.
+Ask the user for an Epic issue number, or search `mcp__plugin_github_github__search_issues` with `is:open` plus a label or type filter to find Epics. Present matches and ask the user to confirm which Epic to expand.
 
 ### Step 2: Read Epic
 
-Call `mcp__github__issue_read` to get the Epic's title, body, and existing sub-issues.
+Call `mcp__plugin_github_github__issue_read` to get the Epic's title, body, and existing sub-issues.
 
 ### Step 3: Collect Sub-Task Descriptions
 
@@ -156,8 +154,8 @@ Present a numbered preview list of all sub-issues to be created. Ask for confirm
 
 For each task in the confirmed list:
 
-1. Create the issue: `mcp__github__issue_write` (inherit Epic's repo)
-2. Link it as a sub-issue: `mcp__github__sub_issue_write(epic_number, new_issue_number)`
+1. Create the issue: `mcp__plugin_github_github__issue_write` (inherit Epic's repo by default; cross-repo is allowed if the user specified a different one). Capture the `id` field from the response — this is the global numeric ID needed in step 2.
+2. Link it as a sub-issue: `mcp__plugin_github_github__sub_issue_write` with `method: "add"`, `owner` / `repo` / `issue_number` of the **Epic**, and `sub_issue_id` = the global numeric `id` captured above (NOT the new issue's `number`).
 3. Add to project board and set Priority / Size (ask once for defaults to apply to all, or ask per-issue if they differ)
 
 ### Step 6: Summary
@@ -168,18 +166,22 @@ Report a list of created issue URLs and their sub-issue links to the Epic.
 
 ## Operation: Triage / Fix
 
-### Step 1: Fetch Open Issues
+### Step 1: Fetch Open Issues and Project Items
 
-Call `mcp__github__list_issues` to get open issues. Paginate if needed (batches of 10).
+Run the two queries in parallel:
+
+- `mcp__plugin_github_github__list_issues` for the repo (paginate in batches of 10 if needed) — gives you the source-of-truth set of open issues.
+- `mcp__plugin_github_github__projects_list` with `list_project_items` (passing the relevant single-select field IDs in `fields`) — gives you what is on the board, with current Priority / Size / Status / parent values.
+
+Build a lookup table keyed by issue number from the project items so you can cheaply tell which issues are on the board and what fields they already have set.
 
 ### Step 2: Check Each Issue
 
-For each issue, check:
+For each open issue from Step 1:
 
-- Missing Priority field on the project board
-- Missing Size field on the project board
-- Task / Feature / Bug with no parent issue (no sub-issue relationship)
-- Issue not added to the project board at all
+- **Not on the board**: the issue number is missing from the project-items lookup table.
+- **Missing Priority / Size / Status**: present on the board but the corresponding single-select option is empty in the item's field values.
+- **No parent issue**: a Task / Feature / Bug whose `parent` is null. Verify with a GraphQL query (`repository.issue(number: N) { parent { number repository { nameWithOwner } } }`) — `list_issues` does not return parent metadata.
 
 ### Step 3: Report Findings
 
@@ -198,9 +200,9 @@ Ask the user: "Fix all of these, or select specific ones?" Let the user choose v
 ### Step 5: Apply Fixes
 
 For each selected issue:
-- If not on board: `gh project item-add <project_number> --owner <owner> --url <issue_url>`
-- If missing Priority or Size: `gh project item-edit` with the appropriate field and option IDs
-- If missing parent: ask the user for the parent issue number, then call `mcp__github__sub_issue_write`
+- **Not on board**: `mcp__plugin_github_github__projects_write` with `method: "add_project_item"` (same call shape as Create-Issue Step 8.1). Capture the returned project item id.
+- **Missing Status / Priority / Size**: `mcp__plugin_github_github__projects_write` with `method: "update_project_item"`, one call per missing field, with `updated_field: { id: <field_numeric_id>, value: <option_id> }`. Default Status to `Backlog` when freshly added in this same fix pass. (Fall back to `gh project item-edit` only if the MCP update fails — see Create-Issue Step 8.4.)
+- **Missing parent**: ask the user for the parent issue number, then call `mcp__plugin_github_github__sub_issue_write` with `method: "add"`, `owner` / `repo` / `issue_number` of the parent, and `sub_issue_id` = the **global numeric `id`** of the child issue (re-fetch via `issue_read` if you don't have it cached). Cross-repo within the same org is supported.
 
 ### Step 6: Summary
 
@@ -212,7 +214,7 @@ Report how many issues were fixed and what was changed.
 
 ### Step 1: Read Config
 
-Read `github_project_number` from CLAUDE.md. If missing, fall back to `mcp__github__list_issues` and note that project board fields (Priority, Size, Status) will not be shown.
+Read `github_project_number` from CLAUDE.md. If missing, fall back to `mcp__plugin_github_github__list_issues` and note that project board fields (Priority, Size, Status) will not be shown.
 
 ### Step 2: Ask for Filters (optional)
 
@@ -224,7 +226,7 @@ Ask via AskUserQuestion whether the user wants to filter by:
 
 ### Step 3: Fetch Items
 
-Call `mcp__github__projects_list` with `list_project_items` using the selected filters. If no project is configured, use `mcp__github__list_issues`.
+Call `mcp__plugin_github_github__projects_list` with `list_project_items` using the selected filters. If no project is configured, use `mcp__plugin_github_github__list_issues`.
 
 ### Step 4: Present Table
 
@@ -250,12 +252,13 @@ After displaying the board, ask via AskUserQuestion:
 |-----------|--------|
 | No `github_project_number` in config | Work without board — offer to run `/github:setup` to configure one |
 | Duplicate issue found | Show existing issue, ask whether to continue or abort |
-| `gh project item-edit` fails (field ID changed) | Re-discover field IDs via `list_project_fields`, retry once |
-| `sub_issue_write` fails (cross-repo) | Fall back to `gh api` GraphQL, note in summary |
+| `update_project_item` fails (field ID changed or schema mismatch) | Re-discover field IDs via `list_project_fields` and retry once. If still failing, fall back to `gh project item-edit` with the captured node-id strings (see Create-Issue Step 8.4). |
+| `sub_issue_write` returns "not found" / "invalid" | Likely the wrong field was passed: `sub_issue_id` must be the child's **global numeric ID** (`id` from `issue_write` / `issue_read`), not its `issue_number`. Re-fetch the child via `issue_read` and retry. Cross-repo within the same org is supported natively — no GraphQL fallback needed. Only fall back to `gh api graphql` `addSubIssue` mutation if the MCP call genuinely fails after this correction. |
 | Issue type not available in repo | Use label as fallback, warn user |
 | `list_project_items` returns empty | Check project number and owner, suggest re-running `/github:setup` |
-| `gh project item-add` returns no item-id | Parse output carefully; retry with `--format json` flag |
-| Board fields (Priority, Size) not found | Warn that the project may use different field names; show available fields |
+| `add_project_item` response missing the item id | Re-call `list_project_items` filtering by the issue number to recover the project item id; if that also fails, fall back to `gh project item-add … --format json` and parse `id` from JSON. |
+| Board fields (Priority, Size, Status) not found | Warn that the project may use different field names; show available fields |
+| MCP tool prefix mismatch / GitHub MCP unavailable | The host project may be running a different GitHub MCP server with a different prefix (e.g. `mcp__github__*` directly) that disables the bundled one to avoid conflicts. Inspect the available tools, re-bind the same verb names (`issue_write`, `projects_list`, `projects_write`, `sub_issue_write`, …) under the actual prefix, and proceed. If no GitHub MCP is exposed at all, fall back to `gh` CLI: `gh issue create`, `gh project item-add/edit`, `gh api graphql` for sub-issues. |
 
 ## Related Skills
 
