@@ -31,19 +31,25 @@ git add mise.lock
 
 The cross-platform invocation matters: cloud sessions run on `linux-x64`. A lockfile generated only on macOS will not contain the URLs the sandbox needs, so install will silently fall back to GitHub API resolution and risk rate-limiting. `/claude-remote:setup` walks you through this; `/claude-remote:verify` reports a `WARN` when `mise.lock` is missing.
 
+The mise version generating the lockfile matters too: mise 2026.7 changed the entry format (a per-tool `options` fingerprint, e.g. ruby's `precompiled_url`) and rejects entries written by older versions with `<tool> is not in the lockfile` — even when the platform entry exists. Cloud sessions always run the latest mise, so generate `mise.lock` with mise ≥ 2026.7 and regenerate it after upgrading mise if installs start failing that way.
+
+Pair `locked = true` with `github_attestations = false`: with the default (`true`), a lock generated on an authenticated dev machine records `provenance = "github-attestations"` on entries for GitHub-released tools (e.g. ruby's precompiled builds), and the unauthenticated cloud install then fails with `Lockfile requires github-attestations provenance ... but no verification was used` (the attestation API call 403s). The sha256 checksums in the lockfile keep guaranteeing integrity. The setting must be active when the lock is generated; if `provenance` lines are already present, delete `mise.lock` and regenerate.
+
 To make the lockfile contract enforceable, the skill also recommends `[settings] locked = true` in `mise.toml`. This flips mise into strict mode at project scope: any tool that lacks a lockfile entry for the current platform fails fast instead of silently re-resolving via the GitHub API. Caveat: per the [mise docs](https://mise.jdx.dev/dev-tools/mise-lock.html), `[settings] locked = true` in a project `mise.toml` also applies to tools you've configured in `~/.config/mise/config.toml`. If you have global tools, run `mise lock -g` once locally so they keep installing cleanly. Cloud sessions are unaffected — they have no user-level mise config.
 
 ### `.tool-versions` + `mise.toml` layout
 
-`mise lock` only generates entries from `.tool-versions` if a sibling
-`mise.toml` exists. Two layouts are supported:
+Since mise 2026.7, `mise lock` generates entries ONLY from the `[tools]`
+section of `mise.toml` — `.tool-versions` is never a lock source, not even
+with a sibling `mise.toml` (locking from `.tool-versions` used to work up
+to mise 2026.5 and no longer does). Two layouts are supported:
 
 | Layout | When to use |
 |---|---|
-| `.tool-versions` + `mise.toml` + `mise.lock` (hybrid) | CI uses `actions/setup-node@v4` (or similar) with `node-version-file: '.tool-versions'`. `mise.toml` holds env vars, tasks, and `[settings] locked = true`. Tool versions stay in `.tool-versions` for backward compatibility. |
+| `mise.toml` (with `[tools]`) + `.tool-versions` + `mise.lock` (hybrid) | CI uses `actions/setup-node` (or similar) with `node-version-file: '.tool-versions'` — that action cannot read `mise.toml` (`ruby/setup-ruby` can). Versions are duplicated in both files and must be kept in sync on every bump. |
 | `mise.toml` (with `[tools]`) + `mise.lock` only | Cleanest single-source-of-truth setup. CI uses `jdx/mise-action@v2` instead of `actions/setup-*`. No `.tool-versions` to drift. |
 
-If your repo has only `.tool-versions`, `/claude-remote:setup` will offer to add a minimal `mise.toml` stub before generating the lockfile.
+If your repo keeps tool versions only in `.tool-versions`, `/claude-remote:setup` will offer to copy them into `[tools]` before generating the lockfile.
 
 ### Upgrading an existing setup
 
