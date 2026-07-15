@@ -174,6 +174,10 @@ If Step 1 detected a mise config but **no `mise.lock`**:
    ruby). When in doubt, regenerating with a current mise is cheap and
    idempotent; a stale-format lock makes the cloud install fail with
    `<tool> is not in the lockfile` despite the entry being present.
+6. Grep the lockfile for `provenance` — any hit means it was generated
+   without `github_attestations = false` (see Step 5b) and the cloud
+   install will fail with a `downgrade attack` error. Delete `mise.lock`
+   and regenerate after applying the setting.
 
 #### 5b. Recommend `[settings] locked = true` in `mise.toml`
 
@@ -192,7 +196,22 @@ If the user accepts, append to `mise.toml` using `Edit`:
 # platform on every `mise install`. Regenerate after bumping versions:
 #   mise lock --platform linux-x64,macos-arm64
 locked = true
+# Don't record/verify GitHub attestation provenance: verification needs
+# authenticated GitHub API calls that cloud sandboxes can't make (403),
+# and a lock entry with provenance is *required* at install time.
+# Integrity is still guaranteed by the sha256 checksums in mise.lock.
+github_attestations = false
 ```
+
+`github_attestations = false` is NOT optional for the cloud flow: with the
+default (`true`), a lock generated on an authenticated dev machine records
+`provenance = "github-attestations"` on entries for tools distributed via
+GitHub releases (e.g. ruby's precompiled builds from `jdx/ruby`), and the
+unauthenticated cloud install then fails with `Lockfile requires
+github-attestations provenance ... but no verification was used`. The
+setting must be active at LOCK-GENERATION time; if the lockfile already
+contains `provenance` lines, delete `mise.lock` and regenerate — a plain
+re-run of `mise lock` preserves existing provenance fields.
 
 **Document the scope caveat to the user before they accept** (per the
 mise docs: *"Setting locked = true in a project's mise.toml applies to
