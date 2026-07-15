@@ -42,7 +42,8 @@ export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 # enforced automatically (install fails fast on missing lockfile entries
 # instead of silently falling back to GitHub API resolution and hitting
 # the rate limit on unauthenticated cloud sessions). Generate the lockfile
-# locally with `mise lock --platform linux-x64,macos-arm64` and commit it.
+# locally with `mise lock --platform linux-x64,macos-arm64` (mise ≥ 2026.7 —
+# older versions write a lock format that current mise rejects) and commit it.
 if command -v mise >/dev/null 2>&1; then
   mise trust "$REPO_ROOT" 2>/dev/null || true
   if [ ! -f "$REPO_ROOT/mise.lock" ]; then
