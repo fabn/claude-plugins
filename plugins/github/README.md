@@ -1,6 +1,6 @@
 # GitHub Plugin
 
-GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, and interactive setup for GitHub MCP server and gh CLI.
+GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), cross-repository roadmap and dependency mapping, release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, and interactive setup for GitHub MCP server and gh CLI.
 
 ## Skills
 
@@ -13,6 +13,7 @@ GitHub workflows: feature development with branch/commit/PR flow, addressing PR 
 | `/github:address-review` | Address PR review comments — read, categorize, implement code changes, reply to threads, push, and optionally resolve threads and update the PR description |
 | `/github:actionlint` | Set up actionlint CI — lint GitHub Actions workflow files on push and PR using reviewdog/action-actionlint |
 | `/github:pm` | Issue and project board management — create issues (Epic/Feature/Task/Bug), expand Epics into sub-issues, triage missing fields, and list board items |
+| `/github:roadmap` | Cross-repository dependency map — what is blocked, by what, and what is actionable now, generated on demand from GitHub's own issue graph |
 
 ## Prerequisites
 
@@ -45,6 +46,16 @@ Make the token available to Claude's environment using any of these methods:
 - **Project Claude settings**: Add to `.claude/settings.local.json` in the project root
 
 > **Note:** OAuth flow support may remove the token requirement in the future.
+
+### `jq` (for `/github:roadmap`)
+
+The roadmap skill's `fetch-graph.sh` normalizes the GraphQL response with `jq`.
+
+```bash
+jq --version   # any 1.6+
+```
+
+Install with `brew install jq` (macOS) or your distribution's package manager. The script exits with a clear message if it is missing.
 
 ### `uvx` (for git MCP server)
 
@@ -209,6 +220,19 @@ Issue and project board management — four operations:
 3. Presents a table with #, Title, Type, Status, Priority, Size
 4. Offers follow-up actions
 
+### `/github:roadmap`
+
+Cross-repository dependency map, regenerated on every run:
+
+1. Reads `github_roadmap_repos` from project config (falls back to the current repository, and says so)
+2. Fetches each repository's issue graph via the bundled `scripts/fetch-graph.sh` — hierarchy, `blockedBy` and `blocking`, paginated and deduplicated
+3. Merges any declared cross-organization edges, which GitHub's dependencies cannot express
+4. Reports what the data cannot tell you: isolated issues, dangling config entries, repositories that failed to fetch
+5. Renders the tree — `✅` done, `▶` actionable now, `⏸` blocked (naming the blocker), `⚠` blocked across an organization boundary
+6. Closes with an "Actionable now" list, ordered by how much each item unblocks
+
+No roadmap file is written. A checked-in roadmap is a copy of state GitHub already holds, and it starts lying the first time an issue is closed without it being updated.
+
 ## Project Config
 
 Per-project defaults are stored in the project's `CLAUDE.md` as HTML comments (invisible when rendered):
@@ -219,6 +243,8 @@ Per-project defaults are stored in the project's `CLAUDE.md` as HTML comments (i
 <!-- github_branch_prefix: feature -->
 <!-- github_project_number: 2 -->
 <!-- github_project_owner: fabn -->
+<!-- github_roadmap_repos: acme-corp/platform, acme-corp/app, acme-labs/shared-modules -->
+<!-- github_roadmap_external_edges: acme-corp/app#310 <- acme-labs/shared-modules#15 -->
 ```
 
 | Key | Written by | Read by |
@@ -227,5 +253,7 @@ Per-project defaults are stored in the project's `CLAUDE.md` as HTML comments (i
 | `github_branch_prefix` | `github:setup` Step 6 | `github:feature` Step 1 |
 | `github_project_number` | `github:setup` Step 7 | `github:pm`, `github:feature` Step 8a |
 | `github_project_owner` | `github:setup` Step 7 | `github:pm`, `github:feature` Step 8a |
+| `github_roadmap_repos` | manually | `github:roadmap` Step 1 |
+| `github_roadmap_external_edges` | manually | `github:roadmap` Step 1 |
 
 Field IDs (Priority, Size, Status) are discovered at runtime via `list_project_fields` — not cached — to avoid stale IDs if the project is recreated.
