@@ -80,6 +80,8 @@ Two blind spots make this necessary rather than convenient:
 1. **The sweep is `states: OPEN`.** A closed issue is simply absent, so a declared external edge pointing at one cannot be falsified by the swept data — it renders as a live blocker indefinitely. Observed in practice: an edge stayed on the map for a day after its blocker was closed.
 2. **`issues()` excludes pull requests.** Half of the in-flight work in a busy repository is a PR, referenced in issue bodies exactly as issues are. Without resolution those numbers come back as "missing" and an item under active implementation looks untouched.
 
+But resolution alone is not enough, and this is the distinction worth holding on to: **`--resolve` is a lookup, not a discovery.** It can only confirm a reference you are already able to name. A pull request opened an hour ago, mentioned in no issue body, has no name to give — so it stays invisible however many refs you resolve. That is what the `pulls` enumeration is for, and it is a separate mechanism rather than a bigger version of the same one.
+
 ### One gotcha in the implementation
 
 The query asks for `issue(number:)` **and** `pullRequest(number:)` under the same number. Exactly one is always null, and GraphQL reports that as a `NOT_FOUND` error alongside otherwise valid data — which makes `gh` exit **non-zero on every successful lookup**. The exit code is therefore meaningless here; what decides is whether the body parses and carries a node. Treating the exit code as authoritative turns every lookup into a failure, which is precisely the first version of this code.

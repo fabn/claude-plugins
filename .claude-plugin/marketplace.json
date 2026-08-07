@@ -20,7 +20,7 @@
       "name": "github",
       "source": "./plugins/github",
       "description": "GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), cross-repository roadmap and dependency mapping, release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, and interactive setup for GitHub MCP server and gh CLI.",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "keywords": ["github", "release", "release-drafter", "release-drafter-setup", "ci", "publish", "gh", "setup", "git", "feature", "branch", "pr", "pull-request", "workflow", "commit", "issue", "epic", "pm", "project-board", "triage", "backlog", "sub-issue", "roadmap", "dependencies", "blocked-by", "dependency-tree", "cross-repo", "epic-status", "review", "code-review", "pr-review", "address-review", "resolve-comments", "calver", "autolabeler", "migration", "actionlint", "lint-actions", "workflow-linting"]
     },
     {

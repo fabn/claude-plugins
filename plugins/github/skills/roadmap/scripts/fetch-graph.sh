@@ -12,7 +12,8 @@
 #                   "blockedState", "byState", "crossRepo" } ],
 #     "counts": [ { "id", "blockedBy", "blocking" } ],
 #     "failed": [ { "repo", "error" } ],
-#     "resolved": [ { "ref", "kind", "state", "title" } ]     # only with --resolve
+#     "resolved": [ { "ref", "kind", "state", "title" } ],    # only with --resolve
+#     "pulls":    [ { "repo", "number", "title", "draft", "implements" } ]
 #   }
 #
 # `issues` holds OPEN issues only. `edges` may reference closed issues — a closed
@@ -42,6 +43,14 @@
 #
 # `kind` is "issue", "pull_request" or "missing"; `state` is OPEN, CLOSED or
 # MERGED.
+#
+# `pulls` is the open pull requests of each swept repository. It exists because
+# --resolve is a *lookup*: it confirms references you can already name, so a pull
+# request nobody has mentioned in an issue body is undiscoverable without an
+# enumeration of its own. `implements` carries the issues a PR declares it closes
+# (GitHub's own linkage), so "this issue is being worked on right now" is derived
+# rather than guessed. An open PR with an empty `implements` is itself worth
+# reporting: it is work attached to nothing.
 #
 # Requires: gh (authenticated), jq
 
@@ -88,6 +97,7 @@ query($owner: String!, $name: String!, $endCursor: String) {
 GRAPHQL
 
 raw_pages=""
+raw_prs=""
 failed="[]"
 
 for slug in ${repos[@]+"${repos[@]}"}; do
@@ -119,6 +129,22 @@ for slug in ${repos[@]+"${repos[@]}"}; do
   fi
 
   raw_pages+="$page"$'\n'
+
+  if ! prs=$(gh api graphql \
+        -f query='query($owner:String!,$name:String!){
+          repository(owner:$owner,name:$name){
+            pullRequests(first:100, states:OPEN, orderBy:{field:UPDATED_AT,direction:DESC}) {
+              nodes {
+                number title isDraft
+                repository { nameWithOwner }
+                closingIssuesReferences(first:20) { nodes { number repository { nameWithOwner } } }
+              }
+            }
+          }
+        }' -F owner="$owner" -F name="$name" 2>/dev/null); then
+    prs=""
+  fi
+  raw_prs+="$prs"$'\n'
 done
 
 # --- resolve explicit references ------------------------------------------
@@ -144,7 +170,7 @@ for ref in ${refs[@]+"${refs[@]}"}; do
         -f query='query($owner:String!,$name:String!,$number:Int!){
           repository(owner:$owner,name:$name){
             issue(number:$number){ state title }
-            pullRequest(number:$number){ state title }
+            pullRequest(number:$number){ state title isDraft }
           }
         }' -F owner="$owner" -F name="$name" -F number="$num" 2>/dev/null)
 
@@ -156,12 +182,25 @@ for ref in ${refs[@]+"${refs[@]}"}; do
   resolved=$(jq -c --arg r "$ref" --argjson o "$out" '
     ($o.data.repository // {}) as $d
     | . + [ if   $d.issue       then {ref: $r, kind: "issue",        state: $d.issue.state,       title: $d.issue.title}
-            elif $d.pullRequest then {ref: $r, kind: "pull_request", state: (if $d.pullRequest.state == "MERGED" then "MERGED" else $d.pullRequest.state end), title: $d.pullRequest.title}
+            elif $d.pullRequest then {ref: $r, kind: "pull_request", state: $d.pullRequest.state, draft: $d.pullRequest.isDraft, title: $d.pullRequest.title}
             else {ref: $r, kind: "missing", state: null, title: "no issue or pull request with that number"} end ]
   ' <<<"$resolved")
 done
 
-printf '%s' "$raw_pages" | jq -s --argjson failed "$failed" --argjson resolved "$resolved" '
+pulls=$(printf '%s' "$raw_prs" | jq -s '
+  [ .[] | .data.repository.pullRequests.nodes[]? ]
+  | map({
+      repo:   .repository.nameWithOwner,
+      number: .number,
+      id:     (.repository.nameWithOwner + "#" + (.number|tostring)),
+      title:  .title,
+      draft:  .isDraft,
+      implements: [ .closingIssuesReferences.nodes[]
+                    | (.repository.nameWithOwner + "#" + (.number|tostring)) ]
+    })' 2>/dev/null)
+[ -n "$pulls" ] || pulls="[]"
+
+printf '%s' "$raw_pages" | jq -s --argjson failed "$failed" --argjson resolved "$resolved" --argjson pulls "$pulls" '
   # gh --paginate emits one JSON document per page; collect every issue node.
   [ .[] | .data.repository.issues.nodes[]? ] as $nodes
 
@@ -198,6 +237,7 @@ printf '%s' "$raw_pages" | jq -s --argjson failed "$failed" --argjson resolved "
       } ],
 
       failed: $failed,
-      resolved: $resolved
+      resolved: $resolved,
+      pulls: $pulls
     }
 '

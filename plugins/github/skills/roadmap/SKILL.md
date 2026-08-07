@@ -124,7 +124,7 @@ Run the bundled script with every configured repository as an argument:
 "${CLAUDE_PLUGIN_ROOT}/skills/roadmap/scripts/fetch-graph.sh" owner/repo-a owner/repo-b
 ```
 
-It emits one JSON object on stdout: `issues`, `edges`, `counts`, `failed`. Pagination, the both-ends deduplication of dependencies, and per-repository error isolation all happen inside it.
+It emits one JSON object on stdout: `issues`, `edges`, `counts`, `pulls`, `failed`. Pagination, the both-ends deduplication of dependencies, and per-repository error isolation all happen inside it.
 
 **Do not hand-write GraphQL for this.** The query has several details that are easy to get subtly wrong and that fail silently when they are — the cursor variable must be named `$endCursor` for `--paginate` to work, the same relationship is reported from both ends and must be deduplicated, and closed issues must be kept when they appear as edge nodes. A script gets them right identically on every run.
 
@@ -142,7 +142,9 @@ This is not optional tidiness, it closes two blind spots:
 - **The sweep fetches only OPEN issues.** A declared external edge naming an issue that has since been **closed** has nothing in the data to be checked against, so without this it renders as a live blocker for ever. This has happened.
 - **`issues()` excludes pull requests.** Work in flight as a PR is invisible, so an item actively being implemented looks like an item nobody has started.
 
-`resolved[]` gives `kind` (`issue` / `pull_request` / `missing`) and `state` (`OPEN` / `CLOSED` / `MERGED`).
+`resolved[]` gives `kind` (`issue` / `pull_request` / `missing`), `state` (`OPEN` / `CLOSED` / `MERGED`) and, for pull requests, `draft`.
+
+**`--resolve` is a lookup, not a discovery.** It confirms references you can already name. A pull request nobody has mentioned in an issue body cannot be named, which is why the sweep enumerates open PRs into `pulls` on its own. Do not treat `--resolve` as a way to find work — only as a way to check work you have already heard of.
 
 ### Step 3: Merge and Resolve
 
@@ -151,7 +153,8 @@ Build one graph across all repositories:
 1. Take the hierarchy from each issue's `parent` and `children`.
 2. Take the dependency edges from `edges` — already deduplicated by the script.
 3. Add the configured external edges, marking them as declared rather than derived — **using the state from `resolved`, never assuming they are open.**
-4. Compute, for each open issue: **blocked** if any blocker has `byState = OPEN`, **unblocked** otherwise. A closed blocker is satisfied, not a block.
+4. Attach each entry in `pulls` to the issues in its `implements` — that is GitHub's own "closes #N" linkage, so an issue with an open PR is **being implemented right now**, derived rather than guessed. Note `draft`: a draft PR is weaker evidence of progress than a ready one, and saying which costs nothing.
+5. Compute, for each open issue: **blocked** if any blocker has `byState = OPEN`, **unblocked** otherwise. A closed blocker is satisfied, not a block.
 
 ### Step 4: Report What the Data Cannot Tell You
 
@@ -159,7 +162,8 @@ Before rendering, surface the gaps. This step is what separates a map that is tr
 
 - **Isolated issues** — open issues with no parent, no sub-issues and no dependency edges. They are invisible in a tree and are usually either genuinely standalone or a missing link nobody recorded. List them separately rather than omitting them.
 - **Dangling external edges** — from `resolved`: `kind: "missing"` is a typo or a deleted issue, `state: "CLOSED"` or `"MERGED"` is a satisfied blocker and a config entry to delete. Say which, and offer to remove it.
-- **Work in flight as a pull request** — a `resolved` entry with `kind: "pull_request"` and `state: "OPEN"` means the item is being implemented right now. An issue whose PR is open is not "not started", and rendering it as blocked-and-idle is the most misleading thing this skill can do.
+- **Work in flight as a pull request** — from `pulls`. An issue whose PR is open is not "not started", and rendering it as blocked-and-idle is the most misleading thing this skill can do.
+- **Pull requests attached to nothing** — an entry in `pulls` with an empty `implements`. This is live work the issue graph cannot see at all: no `closes #N`, so no issue moves when it merges, and a map built only from issues will keep showing that work as not started no matter how many times it is run. In practice this is the single largest category of missing signal, and it is fixed by one line in the PR description.
 - **Repositories that failed to fetch** — from `failed`. Never render a partial map as if it were whole.
 - **Checksum mismatches** — for each entry in `counts`, compare `blockedBy` against the number of edges resolved for that issue. A shortfall means an edge was dropped somewhere, and the tree below is incomplete. Say so; do not quietly render it.
 
@@ -185,6 +189,7 @@ Depending on what the map shows:
 - An isolated issue that clearly belongs under an Epic → offer to link it (`/github:pm`).
 - A dependency described in an issue body but absent from the graph → offer to record it on the issue, so the next run derives it instead of needing config.
 - A closed external edge → offer to remove the config entry.
+- An open PR with an empty `implements` → offer to add `Closes #N` to its description, so the next run derives the link instead of losing it.
 
 ## Error Handling
 
@@ -193,7 +198,8 @@ Depending on what the map shows:
 | `gh` CLI not installed or not authenticated | Stop, tell user to run `/github:setup` |
 | `jq` not installed | The script exits 69 naming it; tell the user to install `jq` |
 | An external edge resolves to `CLOSED`/`MERGED` | The blocker is satisfied — render it so, and offer to delete the config entry |
-| A referenced number resolves to an open PR | Render the item as in progress, not as blocked |
+| An issue has an open PR in `pulls` | Render it as in progress, not as blocked. Say if the PR is a draft |
+| An open PR implements nothing | Report it separately — it is invisible to the issue graph until it declares `Closes #N` |
 | No config and not in a git repository | Ask which repositories to map |
 | Config lists a repository the token cannot read | It appears in `failed` with its error; report it by name, render the rest |
 | GraphQL returns `FORBIDDEN` on a dependency field | The repository is on a plan or preview that lacks it — render hierarchy only and say dependencies were unavailable |
