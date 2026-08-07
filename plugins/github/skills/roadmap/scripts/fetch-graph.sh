@@ -69,7 +69,17 @@ for slug in "$@"; do
   owner="${slug%%/*}"
   name="${slug##*/}"
 
-  if [ -z "$owner" ] || [ -z "$name" ] || [ "$owner" = "$slug" ]; then
+  # Reject anything that is not exactly one owner/repo pair. Whitespace is the
+  # case worth naming: a caller that passes "a/b c/d" as a single argument (easy
+  # in zsh, where unquoted expansion does not word-split) would otherwise be
+  # queried as owner "a", name "d" and come back as a confusing NOT_FOUND.
+  case "$slug" in
+    *[[:space:]]*)
+      failed=$(jq -c --arg r "$slug" '. + [{repo: $r, error: "contains whitespace — pass each owner/repo as its own argument"}]' <<<"$failed")
+      continue ;;
+  esac
+
+  if [ -z "$owner" ] || [ -z "$name" ] || [ "$owner" = "$slug" ] || [ "$owner/$name" != "$slug" ]; then
     failed=$(jq -c --arg r "$slug" '. + [{repo: $r, error: "not in owner/repo form"}]' <<<"$failed")
     continue
   fi
