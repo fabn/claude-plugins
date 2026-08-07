@@ -65,7 +65,17 @@ The `git` MCP server requires `uvx` (part of [uv](https://github.com/astral-sh/u
 brew install uv
 ```
 
-If `/mcp` reports the `git` server as failed to connect, this is the first thing to check — four skills depend on its tools, and the recommended permissions block denies the Bash equivalents.
+#### Why the `git` server pins `mcp<2`
+
+`mcp-server-git` (latest release `2026.7.10`) is built against the low-level decorator API of the MCP Python SDK — `@server.list_tools()`. **SDK 2.0.0 removed it**, and an unpinned `uvx mcp-server-git` resolves to that SDK, so the server dies at startup with:
+
+```
+AttributeError: 'Server' object has no attribute 'list_tools'
+```
+
+Claude Code reports this as a connection failure (`-32000`) with no hint of the cause, because the process is gone before the handshake. `--with "mcp<2"` holds the SDK on the 1.x line, where the server initializes normally (verified: it reports `mcp-git 1.29.0`).
+
+Remove the pin once upstream ships an SDK 2.x-compatible release. Four skills call `mcp__git__*` and the recommended permissions block denies the Bash equivalents, so this server failing silently is worse than it looks.
 
 ## Getting Started
 
