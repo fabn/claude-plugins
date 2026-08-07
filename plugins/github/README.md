@@ -75,7 +75,7 @@ AttributeError: 'Server' object has no attribute 'list_tools'
 
 Claude Code reports this as a connection failure (`-32000`) with no hint of the cause, because the process is gone before the handshake. `--with "mcp<2"` holds the SDK on the 1.x line, where the server initializes normally (verified: it reports `mcp-git 1.29.0`).
 
-Remove the pin once upstream ships an SDK 2.x-compatible release. Four skills call `mcp__git__*` and the recommended permissions block denies the Bash equivalents, so this server failing silently is worse than it looks.
+Tracked upstream as [modelcontextprotocol/servers#4580](https://github.com/modelcontextprotocol/servers/issues/4580) — the root cause there is the unbounded `mcp>=1.0.0` constraint in `mcp-server-git`'s own dependencies. **Remove the pin when that issue closes**, either because upstream adds the constraint or because `server.py` migrates to the SDK 2.x API. Four skills call `mcp__git__*` and the recommended permissions block denies the Bash equivalents, so this server failing silently is worse than it looks.
 
 ## Getting Started
 
