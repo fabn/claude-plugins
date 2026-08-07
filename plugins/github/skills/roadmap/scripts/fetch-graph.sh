@@ -13,7 +13,8 @@
 #     "counts": [ { "id", "blockedBy", "blocking" } ],
 #     "failed": [ { "repo", "error" } ],
 #     "resolved": [ { "ref", "kind", "state", "title" } ],    # only with --resolve
-#     "pulls":    [ { "repo", "number", "title", "draft", "implements" } ]
+#     "pulls":    [ { "repo", "number", "title", "draft", "implements" } ],
+#     "mentions": [ { "issue", "by", "byKind", "byState", "byDraft", "implements" } ]
 #   }
 #
 # `issues` holds OPEN issues only. `edges` may reference closed issues — a closed
@@ -51,6 +52,16 @@
 # (GitHub's own linkage), so "this issue is being worked on right now" is derived
 # rather than guessed. An open PR with an empty `implements` is itself worth
 # reporting: it is work attached to nothing.
+#
+# `mentions` is the cross-reference graph, from each issue's own timeline. A
+# mention is NOT a dependency and must never be rendered as one — "#310 mentions
+# #309" is a far weaker claim than "#310 is blocked by #309". It is the relatedness
+# layer, and it is the only machine-readable trace of the two things GitHub's
+# dependency model refuses: a link that crosses organizations, and a pull request
+# that says "Part of #N" rather than "Closes #N".
+#
+# `implements` here is GitHub's `willCloseTarget`: true means the referencing PR
+# will close the issue, which promotes that one mention to a hard link.
 #
 # Requires: gh (authenticated), jq
 
@@ -90,6 +101,18 @@ query($owner: String!, $name: String!, $endCursor: String) {
         subIssues(first: 50) { nodes { number state repository { nameWithOwner } } }
         blockedBy(first: 50) { nodes { number state repository { nameWithOwner } } }
         blocking(first: 50)  { nodes { number state repository { nameWithOwner } } }
+        timelineItems(first: 30, itemTypes: [CROSS_REFERENCED_EVENT]) {
+          nodes {
+            ... on CrossReferencedEvent {
+              willCloseTarget
+              source {
+                __typename
+                ... on PullRequest { number state isDraft repository { nameWithOwner } }
+                ... on Issue { number state repository { nameWithOwner } }
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -230,6 +253,20 @@ printf '%s' "$raw_pages" | jq -s --argjson failed "$failed" --argjson resolved "
       ),
 
       # Checksum against the edges above; see the header.
+      mentions: [ $nodes[] | . as $i
+        | .timelineItems.nodes[]?
+        | select(.source != null)
+        | {
+            issue:   ref($i),
+            by:      (.source.repository.nameWithOwner + "#" + (.source.number | tostring)),
+            byKind:  (if .source.__typename == "PullRequest" then "pull_request" else "issue" end),
+            byState: .source.state,
+            byDraft: (.source.isDraft // false),
+            implements: (.willCloseTarget // false)
+          }
+        | select(.issue != .by)
+      ] | unique_by([.issue, .by]),
+
       counts: [ $nodes[] | {
         id:        ref(.),
         blockedBy: (.blockedBy.nodes | length),

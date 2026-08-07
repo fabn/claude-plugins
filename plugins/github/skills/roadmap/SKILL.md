@@ -32,9 +32,13 @@ Almost the entire map is data the user maintains simply by opening and closing i
 | Blocked by / blocking | `blockedBy`, `blocking` | Yes, **within limits** |
 | Open / closed state | `state` | — |
 
-The exception is **cross-organization** links. GitHub's issue dependencies do not span organizations — selecting an issue outside the current organization fails with a `FORBIDDEN` GraphQL error ([docs](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-issue-dependencies), [changelog](https://github.blog/changelog/2025-08-21-dependencies-on-issues/)). Sub-issues have the same practical ceiling.
+| Mentions (`Part of #N`, `Related to #N`) | `timelineItems` cross-references | Yes, **including across organizations** |
 
-So a project spanning two organizations has edges that exist only in prose. Those — and only those — are declared in config. Everything else is derived.
+The exception is **cross-organization dependencies**. GitHub's issue dependencies do not span organizations — selecting an issue outside the current organization fails with a `FORBIDDEN` GraphQL error ([docs](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-issue-dependencies), [changelog](https://github.blog/changelog/2025-08-21-dependencies-on-issues/)).
+
+**But a cross-organization *mention* works fine and is machine-readable.** Writing "Part of other-org/repo#306" in a body registers a cross-reference on the target's timeline, and the sweep harvests it. So the config list is needed only to assert a *hard dependency* GitHub refused to record — not to make a cross-organization relationship visible at all, which it already is.
+
+Keep the two apart when rendering. A mention is relatedness; only `blockedBy` blocks.
 
 **Do not ask the user to declare edges GitHub can already express.** If a dependency is between two repositories in the same organization, the right answer is to record it on the issue, not in a config file.
 
@@ -124,7 +128,7 @@ Run the bundled script with every configured repository as an argument:
 "${CLAUDE_PLUGIN_ROOT}/skills/roadmap/scripts/fetch-graph.sh" owner/repo-a owner/repo-b
 ```
 
-It emits one JSON object on stdout: `issues`, `edges`, `counts`, `pulls`, `failed`. Pagination, the both-ends deduplication of dependencies, and per-repository error isolation all happen inside it.
+It emits one JSON object on stdout: `issues`, `edges`, `counts`, `pulls`, `mentions`, `failed`. Pagination, the both-ends deduplication of dependencies, and per-repository error isolation all happen inside it.
 
 **Do not hand-write GraphQL for this.** The query has several details that are easy to get subtly wrong and that fail silently when they are — the cursor variable must be named `$endCursor` for `--paginate` to work, the same relationship is reported from both ends and must be deduplicated, and closed issues must be kept when they appear as edge nodes. A script gets them right identically on every run.
 
@@ -153,17 +157,18 @@ Build one graph across all repositories:
 1. Take the hierarchy from each issue's `parent` and `children`.
 2. Take the dependency edges from `edges` — already deduplicated by the script.
 3. Add the configured external edges, marking them as declared rather than derived — **using the state from `resolved`, never assuming they are open.**
-4. Attach each entry in `pulls` to the issues in its `implements` — that is GitHub's own "closes #N" linkage, so an issue with an open PR is **being implemented right now**, derived rather than guessed. Note `draft`: a draft PR is weaker evidence of progress than a ready one, and saying which costs nothing.
-5. Compute, for each open issue: **blocked** if any blocker has `byState = OPEN`, **unblocked** otherwise. A closed blocker is satisfied, not a block.
+4. Add `mentions` as a **soft** layer — relatedness, never blocking. `"#310 mentions #309"` is a far weaker claim than `"#310 is blocked by #309"`, and rendering the first as the second invents dependencies that nobody declared. An entry with `implements: true` is GitHub's `willCloseTarget` and is the exception: that one is a hard link.
+5. Attach each entry in `pulls` to the issues in its `implements` — that is GitHub's own "closes #N" linkage, so an issue with an open PR is **being implemented right now**, derived rather than guessed. Note `draft`: a draft PR is weaker evidence of progress than a ready one, and saying which costs nothing.
+6. Compute, for each open issue: **blocked** if any blocker has `byState = OPEN`, **unblocked** otherwise. A closed blocker is satisfied, not a block.
 
 ### Step 4: Report What the Data Cannot Tell You
 
 Before rendering, surface the gaps. This step is what separates a map that is trusted from one that is merely drawn:
 
-- **Isolated issues** — open issues with no parent, no sub-issues and no dependency edges. They are invisible in a tree and are usually either genuinely standalone or a missing link nobody recorded. List them separately rather than omitting them.
+- **Isolated issues** — open issues with no parent, no sub-issues, no dependency edges **and no mentions**. Check mentions before calling anything isolated: on a real estate they roughly halved the count, so an isolation report built without them mostly measures the tool. They are invisible in a tree and are usually either genuinely standalone or a missing link nobody recorded. List them separately rather than omitting them.
 - **Dangling external edges** — from `resolved`: `kind: "missing"` is a typo or a deleted issue, `state: "CLOSED"` or `"MERGED"` is a satisfied blocker and a config entry to delete. Say which, and offer to remove it.
 - **Work in flight as a pull request** — from `pulls`. An issue whose PR is open is not "not started", and rendering it as blocked-and-idle is the most misleading thing this skill can do.
-- **Pull requests attached to nothing** — an entry in `pulls` with an empty `implements`. This is live work the issue graph cannot see at all: no `closes #N`, so no issue moves when it merges, and a map built only from issues will keep showing that work as not started no matter how many times it is run. In practice this is the single largest category of missing signal, and it is fixed by one line in the PR description.
+- **Pull requests attached to nothing** — an entry in `pulls` with an empty `implements` **and no entry in `mentions`**. A PR whose body says "Part of #N" is not orphaned; it is only missing the closing keyword, which is a much smaller thing to report and sometimes deliberate (a PR that advances an Epic without closing it).
 - **Repositories that failed to fetch** — from `failed`. Never render a partial map as if it were whole.
 - **Checksum mismatches** — for each entry in `counts`, compare `blockedBy` against the number of edges resolved for that issue. A shortfall means an edge was dropped somewhere, and the tree below is incomplete. Say so; do not quietly render it.
 
@@ -189,7 +194,7 @@ Depending on what the map shows:
 - An isolated issue that clearly belongs under an Epic → offer to link it (`/github:pm`).
 - A dependency described in an issue body but absent from the graph → offer to record it on the issue, so the next run derives it instead of needing config.
 - A closed external edge → offer to remove the config entry.
-- An open PR with an empty `implements` → offer to add `Closes #N` to its description, so the next run derives the link instead of losing it.
+- An open PR with neither `implements` nor a mention → offer to reference the issue in its description. One line, and every later run derives the link.
 
 ## Error Handling
 

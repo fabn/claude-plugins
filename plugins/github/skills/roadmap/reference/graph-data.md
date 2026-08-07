@@ -103,11 +103,25 @@ query($owner:String!,$name:String!,$number:Int!) {
 }' -F owner=<owner> -F name=<repo> -F number=<n>
 ```
 
+## Three strengths of link, kept apart
+
+| Signal | Source | Strength |
+|---|---|---|
+| `blockedBy` / `blocking` | dependency API | **hard** — this blocks that |
+| `willCloseTarget` on a cross-reference | timeline | **hard** — this PR closes that issue |
+| everything else in `mentions` | timeline cross-references | **soft** — related, nothing more |
+
+Collapsing the third into the first is the tempting mistake: it produces a dense, confident graph full of dependencies nobody declared. A body that says "Related to #N" is context, not sequencing.
+
+The cross-reference sweep nests inside the existing per-repository issue query and measured **cost 1** against the GraphQL rate limiter — the same as without it. There is no efficiency argument for leaving it out.
+
 ## The cross-organization limitation
 
 GitHub issue dependencies span repositories but **not organizations**. Submitting one across an organization boundary returns `FORBIDDEN: Unauthorized`. Sub-issues hit the same practical ceiling.
 
-This is the only reason the skill accepts a declared edge list. It is a workaround for a platform limit, not a general-purpose way to describe dependencies — anything GitHub can express should be recorded on the issue, where it stays correct with nobody maintaining it.
+This is the only reason the skill accepts a declared edge list — and the reason is narrower than it first appears. **A cross-organization *mention* is not refused**: writing "Part of other-org/repo#306" registers a cross-reference on the target's timeline, across organizations, and the sweep harvests it like any other. Measured on a real estate, that surfaced links between two organizations' Epics that no config declared.
+
+So the config list asserts a *hard dependency* the platform would not record. Making a cross-organization relationship visible needs no config at all — write the reference in the body.
 
 Sources:
 
