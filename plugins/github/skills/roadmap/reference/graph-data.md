@@ -115,6 +115,14 @@ Collapsing the third into the first is the tempting mistake: it produces a dense
 
 The cross-reference sweep nests inside the existing per-repository issue query and measured **cost 1** against the GraphQL rate limiter — the same as without it. There is no efficiency argument for leaving it out.
 
+## Known limit: cross-references on pull request timelines
+
+The sweep harvests `timelineItems` from **issues** only. A reference whose target is a *pull request* — an issue body reading "Related: #320" where 320 is a PR — lands on that PR's timeline and is not collected. The referencing issue can therefore still be reported as isolated when it is not.
+
+Measured on a three-repository estate: of eighteen issues reported isolated, **one** was a false positive from this. Real, small, and recorded here rather than fixed, because harvesting a second set of timelines doubles the sweep's node cost for that return.
+
+Revisit if isolation reports start looking implausible, or if the estate develops a habit of referencing PRs from issue bodies rather than the other way round.
+
 ## The cross-organization limitation
 
 GitHub issue dependencies span repositories but **not organizations**. Submitting one across an organization boundary returns `FORBIDDEN: Unauthorized`. Sub-issues hit the same practical ceiling.
