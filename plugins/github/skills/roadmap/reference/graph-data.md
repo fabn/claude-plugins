@@ -80,6 +80,8 @@ Two blind spots make this necessary rather than convenient:
 1. **The sweep is `states: OPEN`.** A closed issue is simply absent, so a declared external edge pointing at one cannot be falsified by the swept data — it renders as a live blocker indefinitely. Observed in practice: an edge stayed on the map for a day after its blocker was closed.
 2. **`issues()` excludes pull requests.** Half of the in-flight work in a busy repository is a PR, referenced in issue bodies exactly as issues are. Without resolution those numbers come back as "missing" and an item under active implementation looks untouched.
 
+But resolution alone is not enough, and this is the distinction worth holding on to: **`--resolve` is a lookup, not a discovery.** It can only confirm a reference you are already able to name. A pull request opened an hour ago, mentioned in no issue body, has no name to give — so it stays invisible however many refs you resolve. That is what the `pulls` enumeration is for, and it is a separate mechanism rather than a bigger version of the same one.
+
 ### One gotcha in the implementation
 
 The query asks for `issue(number:)` **and** `pullRequest(number:)` under the same number. Exactly one is always null, and GraphQL reports that as a `NOT_FOUND` error alongside otherwise valid data — which makes `gh` exit **non-zero on every successful lookup**. The exit code is therefore meaningless here; what decides is whether the body parses and carries a node. Treating the exit code as authoritative turns every lookup into a failure, which is precisely the first version of this code.
@@ -101,11 +103,33 @@ query($owner:String!,$name:String!,$number:Int!) {
 }' -F owner=<owner> -F name=<repo> -F number=<n>
 ```
 
+## Three strengths of link, kept apart
+
+| Signal | Source | Strength |
+|---|---|---|
+| `blockedBy` / `blocking` | dependency API | **hard** — this blocks that |
+| `willCloseTarget` on a cross-reference | timeline | **hard** — this PR closes that issue |
+| everything else in `mentions` | timeline cross-references | **soft** — related, nothing more |
+
+Collapsing the third into the first is the tempting mistake: it produces a dense, confident graph full of dependencies nobody declared. A body that says "Related to #N" is context, not sequencing.
+
+The cross-reference sweep nests inside the existing per-repository issue query and measured **cost 1** against the GraphQL rate limiter — the same as without it. There is no efficiency argument for leaving it out.
+
+## Known limit: cross-references on pull request timelines
+
+The sweep harvests `timelineItems` from **issues** only. A reference whose target is a *pull request* — an issue body reading "Related: #320" where 320 is a PR — lands on that PR's timeline and is not collected. The referencing issue can therefore still be reported as isolated when it is not.
+
+Measured on a three-repository estate: of eighteen issues reported isolated, **one** was a false positive from this. Real, small, and recorded here rather than fixed, because harvesting a second set of timelines doubles the sweep's node cost for that return.
+
+Revisit if isolation reports start looking implausible, or if the estate develops a habit of referencing PRs from issue bodies rather than the other way round.
+
 ## The cross-organization limitation
 
 GitHub issue dependencies span repositories but **not organizations**. Submitting one across an organization boundary returns `FORBIDDEN: Unauthorized`. Sub-issues hit the same practical ceiling.
 
-This is the only reason the skill accepts a declared edge list. It is a workaround for a platform limit, not a general-purpose way to describe dependencies — anything GitHub can express should be recorded on the issue, where it stays correct with nobody maintaining it.
+This is the only reason the skill accepts a declared edge list — and the reason is narrower than it first appears. **A cross-organization *mention* is not refused**: writing "Part of other-org/repo#306" registers a cross-reference on the target's timeline, across organizations, and the sweep harvests it like any other. Measured on a real estate, that surfaced links between two organizations' Epics that no config declared.
+
+So the config list asserts a *hard dependency* the platform would not record. Making a cross-organization relationship visible needs no config at all — write the reference in the body.
 
 Sources:
 
