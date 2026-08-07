@@ -40,39 +40,81 @@ So a project spanning two organizations has edges that exist only in prose. Thos
 
 ## Config
 
-Read from the project's `CLAUDE.md` `<!-- github-plugin-config -->` block, the same block `github:pm` and `github:feature` use:
+Resolved by the shared script, never by parsing files inline:
 
-```markdown
-<!-- github-plugin-config -->
-<!-- github_roadmap_repos: acme-corp/platform, acme-corp/app, acme-labs/shared-modules -->
-<!-- github_roadmap_external_edges: acme-corp/app#310 <- acme-labs/shared-modules#15; acme-corp/app#306 <- acme-corp/platform#404 -->
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
+```
+
+It returns `{ "source", "path", "config" }`. **Act on `source` before using `config`:**
+
+| `source` | Meaning | What to do |
+|---|---|---|
+| `json` | `.claude/github.json` — the current location | Nothing, proceed |
+| `claude-md` | the deprecated `<!-- github-plugin-config -->` block | Stop and offer migration (below) |
+| `none` | no configuration anywhere | Proceed with this skill's defaults |
+
+The `config` object is normalized to the same shape either way:
+
+```json
+{
+  "mainBranch": "main",
+  "branchPrefix": "feature",
+  "project": { "number": 2, "owner": "acme" },
+  "roadmap": { "repos": ["acme/platform"], "externalEdges": [] }
+}
+```
+
+### On `source: "claude-md"`
+
+Tell the user their config is in the deprecated location and offer to move it:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/migrate-config.sh"          # add --dry-run to preview
+```
+
+It writes `.claude/github.json`, strips the block from `CLAUDE.md` and leaves the surrounding prose intact. If they decline, continue with the values returned — the fallback is removed in 0.8.0, and saying so now is the point of the prompt.
+
+**Do not skip the prompt.** Several skills here degrade quietly without config rather than failing, so once the fallback is gone a silent fallback today and a silent failure tomorrow look identical to the user.
+
+This skill reads `config.roadmap`:
+
+```json
+{
+  "roadmap": {
+    "repos": ["acme-corp/platform", "acme-corp/app", "acme-labs/shared-modules"],
+    "externalEdges": [
+      { "blocked": "acme-corp/app#310", "by": "acme-labs/shared-modules#15" }
+    ]
+  }
+}
 ```
 
 | Key | Meaning |
 |---|---|
-| `github_roadmap_repos` | Comma-separated `owner/repo` list to include. If absent, use the current repository only. |
-| `github_roadmap_external_edges` | Semicolon-separated `<blocked> <- <blocker>` pairs, each a fully qualified `owner/repo#number`. Optional. Only for links GitHub cannot express. |
+| `repos` | `owner/repo` list to include. If absent, use the current repository only. |
+| `externalEdges` | `{blocked, by}` pairs, each side a fully qualified `owner/repo#number`. Optional. Only for links GitHub cannot express. |
 
-Keep `github_roadmap_external_edges` short. If it grows past a handful of entries, that is a signal the repositories belong in one organization, not that the list needs a better format.
+Keep `externalEdges` short. If it grows past a handful of entries, that is a signal the repositories belong in one organization, not that the list needs a better format.
 
 ## Tools Used
 
 - **Bash**: `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/scripts/fetch-graph.sh` — fetches and normalizes the graph. Requires `gh` (authenticated) and `jq`.
 - **Bash**: `gh repo view --json owner,name` to detect the current repository when config is absent.
-- **Read**: the project's `CLAUDE.md` for the config block.
+- **Bash**: `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh` for the project config.
 - **GitHub MCP** (optional): `issue_read` when the user drills into a single issue after seeing the map.
 
 ## Workflow
 
 ### Step 1: Resolve Configuration
 
-Read `CLAUDE.md` and parse the `<!-- github-plugin-config -->` block.
+Run `read-config.sh` and act on `source` before anything else (see [Config](#config)).
 
-- **`github_roadmap_repos` present**: use it.
+- **`config.roadmap.repos` present**: use it.
 - **Absent**: run `gh repo view --json owner,name` and use the current repository alone. Say so explicitly in the output — a single-repo map from a multi-repo project looks complete and is not. Offer to add the key.
 - **Not in a git repository and no config**: stop, and ask which repositories to map.
 
-Parse `github_roadmap_external_edges` if present. Ignore malformed entries rather than failing, but list them in the output so a typo is visible instead of silently dropping an edge.
+Take `config.roadmap.externalEdges` if present. Ignore malformed entries rather than failing, but list them in the output so a typo is visible instead of silently dropping an edge.
 
 ### Step 2: Fetch the Graph
 

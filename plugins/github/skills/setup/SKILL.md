@@ -5,7 +5,7 @@ description: |
   server, verify gh CLI installation, check authentication, or troubleshoot
   GitHub plugin connectivity. Checks gh CLI availability, authentication status,
   GITHUB_MCP_TOKEN configuration, tests MCP tool availability, configures
-  project permissions, and writes project defaults to CLAUDE.md.
+  project permissions, and writes project defaults to .claude/github.json.
   Activates on: "setup github", "configure github", "github setup",
   "install github plugin", "connect to github", "github mcp",
   "github token", "test github connection", "verify github",
@@ -21,8 +21,8 @@ Interactive setup wizard for the GitHub plugin. Verifies `gh` CLI installation, 
 - **Bash**: Check `gh` CLI version and authentication status; parse remote URL
 - **GitHub MCP** (`mcp__plugin_github_github__*` when this plugin's bundled GitHub MCP server is active): `get_me`, `projects_list`
 - **ToolSearch**: Discover GitHub MCP tools and verify connectivity
-- **Read**: Read CLAUDE.md for existing config
-- **Write / Edit**: Write project defaults to CLAUDE.md
+- **Bash**: `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh` to detect existing config and its location; `migrate-config.sh` when it is in the deprecated one
+- **Write / Edit**: Write project defaults to `.claude/github.json`
 - **AskUserQuestion**: Guide user through fixing issues and collecting config values
 
 > **MCP server name may differ.** The prefix `mcp__plugin_github_github__` is used when this plugin's bundled GitHub MCP server is active. If the host project ships its own GitHub MCP server (often `mcp__github__*`), the bundled one may be disabled to avoid conflicts — discover the actual prefix from the available tool list and substitute it (in tool calls **and** in the permissions block recommended in Step 5). Verb names are unchanged.
@@ -91,7 +91,7 @@ Show the user the recommended three-tier permission model for this plugin and as
 
 Explain the three tiers:
 
-- **`allow`** — auto-approved without prompting: filesystem reads + git read-only operations + staging and branch creation (low risk, high frequency)
+- **`allow`** — auto-approved without prompting: git read-only operations plus staging and branch creation (low risk, high frequency)
 - **`ask`** — prompts before executing: commit, checkout, reset, and all `git` Bash commands that modify history or sync with remote
 - **`deny`** — blocked entirely: Bash versions of `git add`, `git commit`, `git checkout`, and `git reset` are denied because MCP tools exist for all of them — this forces Claude to use the MCP tool consistently. The user may also add `mcp__plugin_github_github__push_files` here to prevent accidental use; the `github:feature` skill always uses `git push` via Bash instead since `push_files` does not update the local working copy.
 
@@ -102,7 +102,6 @@ Recommended `.claude/settings.json` (or `.claude/settings.local.json` for person
   "enableAllProjectMcpServers": true,
   "permissions": {
     "allow": [
-      "mcp__filesystem__*",
       "mcp__git__git_status",
       "mcp__git__git_diff",
       "mcp__git__git_diff_unstaged",
@@ -145,18 +144,28 @@ Ask for two project-level defaults via AskUserQuestion:
 1. **Main branch name** — the branch PRs merge into (default: `main`)
 2. **Default branch prefix** — used when suggesting branch names in `github:feature` (default: `feature`)
 
-Write the values to the project's `CLAUDE.md` as HTML comments (invisible when rendered):
+Write the values to `.claude/github.json`:
 
-```markdown
-<!-- github-plugin-config -->
-<!-- github_main_branch: main -->
-<!-- github_branch_prefix: feature -->
+```json
+{
+  "mainBranch": "main",
+  "branchPrefix": "feature"
+}
 ```
 
 Rules:
-- If a `<!-- github-plugin-config -->` block already exists in CLAUDE.md, replace it
-- If CLAUDE.md does not exist, create it with just this block
-- Only include keys the user explicitly provided (omit defaults the user did not change if CLAUDE.md already exists)
+- Merge into the existing file rather than overwriting it — Step 7 writes `project` into the same file, and a later run must not drop it
+- Create `.claude/` if it does not exist
+- Only write keys the user explicitly provided; omitting a key is what selects the default, so writing defaults out freezes them
+- Validate the result parses (`jq . .claude/github.json`) before reporting success
+
+**If the project still carries the deprecated `<!-- github-plugin-config -->` block in `CLAUDE.md`**, migrate it first rather than writing a second source of truth:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/migrate-config.sh"          # --dry-run to preview
+```
+
+Then apply this step's values on top of the migrated file. Two live config locations is the one outcome to avoid — `read-config.sh` prefers the JSON, so a stale markdown block would sit there looking authoritative and being ignored.
 
 ### Step 7: Configure GitHub Project (optional)
 
@@ -172,18 +181,19 @@ Options:
 1. Ask for the project number. Accept either a plain number (`2`) or a full URL (`https://github.com/users/<owner>/projects/<N>`) — parse the number from the URL if provided.
 2. Ask for the project owner (default: owner extracted from `git remote get-url origin`).
 3. Validate by calling `mcp__plugin_github_github__projects_list` with `list_project_fields` for the given project — confirm that Status, Priority, and Size fields exist.
-4. Write to CLAUDE.md inside the `<!-- github-plugin-config -->` block:
+4. Merge into `.claude/github.json`:
 
-```markdown
-<!-- github_project_number: 2 -->
-<!-- github_project_owner: fabn -->
+```json
+{
+  "project": { "number": 2, "owner": "acme" }
+}
 ```
 
 **If "No, but I want to create one":**
 
 Explain: "Project creation isn't available via the MCP tools. Create a project from the GitHub kanban template at https://github.com/new/project, then come back and re-run `/github:setup` to register it."
 
-Do not write any project config to CLAUDE.md.
+Do not write any project config.
 
 **If "Skip":**
 
@@ -225,10 +235,11 @@ Adjust the summary based on what was actually found. Show `Project board: not co
 | MCP tools not found after token set | Suggest restarting Claude Code, check plugin is installed |
 | `get_me` call fails | Check token validity, suggest regenerating |
 | Network connectivity issues | Suggest checking proxy/firewall, try `gh api user` as fallback |
-| CLAUDE.md is read-only | Ask user to check file permissions, offer to print config for manual paste |
+| `.claude/github.json` is read-only | Ask user to check file permissions, offer to print the JSON for manual paste |
+| Config found in the deprecated CLAUDE.md block | Run `migrate-config.sh` before writing, so only one source of truth exists |
+| `jq` not installed | Required by the config scripts — tell user to install it (`brew install jq`) |
 | `uvx` not installed (git MCP) | Tell user to install `uv`: `brew install uv` or `pip install uv` |
-| `npx` not available (filesystem MCP) | Tell user to install Node.js and npm |
-| `github_project_number` invalid | `list_project_fields` call fails — show error, ask user to verify the project number |
+| Project number invalid | `list_project_fields` call fails — show error, ask user to verify the project number |
 | Project fields missing (no Priority/Size) | Warn user the project may not use the standard kanban template; list available fields |
 
 ## Related Skills
@@ -236,4 +247,4 @@ Adjust the summary based on what was actually found. Show `Project board: not co
 - **`/github:feature`** — Create branch, commit, push, and open a PR
 - **`/github:release`** — Publish draft releases created by Release Drafter
 - **`/github:release-drafter`** — Configure release-drafter on a repository (fresh setup or v6→v7 migration)
-- **`/github:pm`** — Create and manage issues; requires `github_project_number` for board integration
+- **`/github:pm`** — Create and manage issues; requires `project` in config for board integration

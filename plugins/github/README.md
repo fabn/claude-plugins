@@ -65,13 +65,7 @@ The `git` MCP server requires `uvx` (part of [uv](https://github.com/astral-sh/u
 brew install uv
 ```
 
-### `npx` (for filesystem MCP server)
-
-The `filesystem` MCP server requires Node.js and npm. Install via [nodejs.org](https://nodejs.org/) or:
-
-```bash
-brew install node
-```
+If `/mcp` reports the `git` server as failed to connect, this is the first thing to check — four skills depend on its tools, and the recommended permissions block denies the Bash equivalents.
 
 ## Getting Started
 
@@ -109,15 +103,16 @@ To add actionlint CI for linting GitHub Actions workflows:
 
 ## MCP Servers
 
-The plugin bundles three MCP servers:
+The plugin bundles two MCP servers:
 
 | Server | Type | Purpose |
 |--------|------|---------|
 | `github` | HTTP | GitHub API access — repositories, releases, issues, PRs, actions, projects, labels |
 | `git` | stdio (`uvx`) | Local git operations — branch, status, diff, log, add, commit, create branch, checkout |
-| `filesystem` | stdio (`npx`) | Local file reads — used to read CLAUDE.md for project config |
 
 The `github` server connects to `https://api.githubcopilot.com/mcp/` with configurable [toolsets](https://github.com/github/github-mcp-server?tab=readme-ov-file#default-toolset) via the `X-MCP-Toolsets` header. Default toolsets: `default`, `projects`, `actions`, `labels`.
+
+> 0.7.0 removed a third bundled server, `filesystem` (stdio, `npx`). No skill ever called its tools — it appeared only as an allowlist entry — and it duplicated Claude Code's native Read/Write/Edit while adding a Node.js runtime dependency. The `git` server stays: four skills call `mcp__git__*` directly, and the permissions block this plugin recommends *denies* Bash `git add` / `git commit` precisely so that local git goes through it consistently.
 
 ## Skill Details
 
@@ -130,7 +125,7 @@ Interactive setup wizard:
 4. Tests MCP connectivity with a lightweight API call
 5. Configures project permissions (three-tier allow/ask/deny model)
 6. Writes project defaults to CLAUDE.md (main branch, branch prefix)
-7. Optionally configures a GitHub project board (`github_project_number`, `github_project_owner`)
+7. Optionally configures a GitHub project board (`project.number`, `project.owner`)
 8. Reports status summary with next steps
 
 ### `/github:release`
@@ -165,7 +160,7 @@ Set up actionlint CI on any repository:
 ### `/github:feature`
 
 Full feature development workflow:
-1. Reads project config from CLAUDE.md (`github_main_branch`, `github_branch_prefix`, `github_project_number`)
+1. Reads project config via `scripts/read-config.sh` (`mainBranch`, `branchPrefix`, `project`)
 2. Detects current branch and working tree state via Git MCP
 3. Creates or checks out a feature branch (suggests name from description)
 4. Reviews unstaged and staged changes, asks which files to include
@@ -224,7 +219,7 @@ Issue and project board management — four operations:
 
 Cross-repository dependency map, regenerated on every run:
 
-1. Reads `github_roadmap_repos` from project config (falls back to the current repository, and says so)
+1. Reads `roadmap.repos` from project config (falls back to the current repository, and says so)
 2. Fetches each repository's issue graph via the bundled `scripts/fetch-graph.sh` — hierarchy, `blockedBy` and `blocking`, paginated and deduplicated
 3. Merges any declared cross-organization edges, which GitHub's dependencies cannot express
 4. Reports what the data cannot tell you: isolated issues, dangling config entries, repositories that failed to fetch
@@ -235,25 +230,54 @@ No roadmap file is written. A checked-in roadmap is a copy of state GitHub alrea
 
 ## Project Config
 
-Per-project defaults are stored in the project's `CLAUDE.md` as HTML comments (invisible when rendered):
+Per-project defaults live in `.claude/github.json`:
 
-```markdown
-<!-- github-plugin-config -->
-<!-- github_main_branch: main -->
-<!-- github_branch_prefix: feature -->
-<!-- github_project_number: 2 -->
-<!-- github_project_owner: fabn -->
-<!-- github_roadmap_repos: acme-corp/platform, acme-corp/app, acme-labs/shared-modules -->
-<!-- github_roadmap_external_edges: acme-corp/app#310 <- acme-labs/shared-modules#15 -->
+```json
+{
+  "mainBranch": "main",
+  "branchPrefix": "feature",
+  "project": { "number": 2, "owner": "acme" },
+  "roadmap": {
+    "repos": ["acme-corp/platform", "acme-corp/app", "acme-labs/shared-modules"],
+    "externalEdges": [
+      { "blocked": "acme-corp/app#310", "by": "acme-labs/shared-modules#15" }
+    ]
+  }
+}
 ```
 
 | Key | Written by | Read by |
 |-----|-----------|---------|
-| `github_main_branch` | `github:setup` Step 6 | `github:feature` Step 1 |
-| `github_branch_prefix` | `github:setup` Step 6 | `github:feature` Step 1 |
-| `github_project_number` | `github:setup` Step 7 | `github:pm`, `github:feature` Step 8a |
-| `github_project_owner` | `github:setup` Step 7 | `github:pm`, `github:feature` Step 8a |
-| `github_roadmap_repos` | manually | `github:roadmap` Step 1 |
-| `github_roadmap_external_edges` | manually | `github:roadmap` Step 1 |
+| `mainBranch` | `github:setup` Step 6 | `github:feature`, `github:address-review` |
+| `branchPrefix` | `github:setup` Step 6 | `github:feature` |
+| `project.number` / `project.owner` | `github:setup` Step 7 | `github:pm`, `github:feature` Step 8a |
+| `roadmap.repos` | manually | `github:roadmap` |
+| `roadmap.externalEdges` | manually | `github:roadmap` |
+
+Every key is optional. Omitting one is what selects its default, which is why `github:setup` does not write defaults the user did not change.
 
 Field IDs (Priority, Size, Status) are discovered at runtime via `list_project_fields` — not cached — to avoid stale IDs if the project is recreated.
+
+### Resolution
+
+Skills never parse config themselves. They run:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" [project-dir]
+```
+
+which returns `{ "source", "path", "config" }` with `config` normalized to the shape above regardless of where it was found.
+
+### Migrating from the CLAUDE.md block
+
+Before 0.7.0 the config lived in `CLAUDE.md` as `<!-- github_key: value -->` HTML comments. That format could not hold structured values, and it grew a file that is loaded into context every session with data no model needs to read.
+
+The old location is still read, and reported as `source: "claude-md"`. Skills that see it stop and offer:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/migrate-config.sh"          # --dry-run to preview
+```
+
+which writes `.claude/github.json`, strips the block from `CLAUDE.md`, and leaves the surrounding prose intact.
+
+**The fallback is removed in 0.8.0.** It exists because several skills degrade quietly without config rather than failing — `github:pm` skips board steps without erroring — so a hard cutover would have looked exactly like a silent bug.
