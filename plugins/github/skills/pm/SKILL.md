@@ -12,27 +12,57 @@ description: |
 
 # GitHub PM Skill
 
-Project management workflow for GitHub issues and project boards. Supports four operations: **Create Issue**, **Expand Epic**, **Triage / Fix**, and **List / Explore Board**. Reads project config from CLAUDE.md; works without a board configured (skips board steps silently).
+Project management workflow for GitHub issues and project boards. Supports four operations: **Create Issue**, **Expand Epic**, **Triage / Fix**, and **List / Explore Board**. Reads project config via the plugin's shared resolver; works without a board configured (skips board steps).
 
 ## Tools Used
 
 - **GitHub MCP** (`mcp__plugin_github_github__*` when this skill ships its bundled GitHub MCP server): `issue_write`, `issue_read`, `list_issues`, `search_issues`, `list_issue_types`, `projects_list`, `projects_get`, `projects_write`, `sub_issue_write`
 - **Bash**: `gh repo view` (and `gh` GraphQL / `gh project` as fallback only — see Troubleshooting)
 - **AskUserQuestion**: collect issue fields, choose operation, confirm before creating
-- **Read**: CLAUDE.md for project config (`github_project_number`, `github_project_owner`)
+- **Bash**: `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh` for project config (and `migrate-config.sh` when it reports the deprecated source)
 
 > **MCP server name may differ.** The tool prefix `mcp__plugin_github_github__` is the one used by the GitHub MCP bundled with this plugin. If the host project ships its own GitHub MCP server (e.g. `mcp__github__*` or another custom name), the bundled one may be disabled to avoid conflicts. Discover the actual prefix at runtime by looking at the available tool list, then substitute it everywhere below. The verb names (`issue_write`, `projects_list`, …) are the same across implementations.
 
 ## Config
 
-Read from the project's CLAUDE.md `<!-- github-plugin-config -->` block:
+Resolved by the shared script, never by parsing files inline:
 
-```markdown
-<!-- github_project_number: 2 -->
-<!-- github_project_owner: fabn -->
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
 ```
 
-If these keys are missing, the skill works without a project board — it creates issues but skips all board steps.
+It returns `{ "source", "path", "config" }`. **Act on `source` before using `config`:**
+
+| `source` | Meaning | What to do |
+|---|---|---|
+| `json` | `.claude/github.json` — the current location | Nothing, proceed |
+| `claude-md` | the deprecated `<!-- github-plugin-config -->` block | Stop and offer migration (below) |
+| `none` | no configuration anywhere | Proceed with this skill's defaults |
+
+The `config` object is normalized to the same shape either way:
+
+```json
+{
+  "mainBranch": "main",
+  "branchPrefix": "feature",
+  "project": { "number": 2, "owner": "acme" },
+  "roadmap": { "repos": ["acme/platform"], "externalEdges": [] }
+}
+```
+
+### On `source: "claude-md"`
+
+Tell the user their config is in the deprecated location and offer to move it:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/migrate-config.sh"          # add --dry-run to preview
+```
+
+It writes `.claude/github.json`, strips the block from `CLAUDE.md` and leaves the surrounding prose intact. If they decline, continue with the values returned — the fallback is removed in 0.8.0, and saying so now is the point of the prompt.
+
+**Do not skip the prompt.** Several skills here degrade quietly without config rather than failing, so once the fallback is gone a silent fallback today and a silent failure tomorrow look identical to the user.
+
+Without `project`, this skill works without a board — it creates issues and skips all board steps.
 
 ## Workflow
 
@@ -53,7 +83,7 @@ Then follow the workflow for the chosen operation.
 
 ### Step 1: Read Config
 
-Read the project's CLAUDE.md and extract `github_project_number` and `github_project_owner` from the `<!-- github-plugin-config -->` block. If missing, proceed without board — note this silently.
+Run `read-config.sh` (see [Config](#config)) and handle `source` first. Use `config.project`; if absent, proceed without a board and say so once.
 
 ### Step 2: Detect Repo
 
@@ -109,7 +139,7 @@ Show a preview of the issue and ask the user to confirm via AskUserQuestion befo
 
 ### Step 8: Add to Project Board (if configured)
 
-If `github_project_number` is set:
+If `config.project.number` is set:
 
 1. Add the issue to the project via `mcp__plugin_github_github__projects_write` with `method: "add_project_item"`, `owner`, `project_number`, `item_type: "issue"`, `item_owner` + `item_repo` (the issue's repo, may differ from the project's org), and `issue_number`. The response includes the new project item's `id` (a node-id-style string like `PVTI_…`).
 
@@ -214,7 +244,7 @@ Report how many issues were fixed and what was changed.
 
 ### Step 1: Read Config
 
-Read `github_project_number` from CLAUDE.md. If missing, fall back to `mcp__plugin_github_github__list_issues` and note that project board fields (Priority, Size, Status) will not be shown.
+Use `config.project.number`. If absent, fall back to `mcp__plugin_github_github__list_issues` and note that project board fields (Priority, Size, Status) will not be shown.
 
 ### Step 2: Ask for Filters (optional)
 
@@ -250,7 +280,9 @@ After displaying the board, ask via AskUserQuestion:
 
 | Situation | Action |
 |-----------|--------|
-| No `github_project_number` in config | Work without board — offer to run `/github:setup` to configure one |
+| No `project` in config | Work without board — offer to run `/github:setup` to configure one |
+| `read-config.sh` reports `source: claude-md` | Offer `migrate-config.sh`; never migrate without asking |
+| `.claude/github.json` is invalid JSON | The script exits 65 naming the parse error — report it, do not guess at defaults |
 | Duplicate issue found | Show existing issue, ask whether to continue or abort |
 | `update_project_item` fails (field ID changed or schema mismatch) | Re-discover field IDs via `list_project_fields` and retry once. If still failing, fall back to `gh project item-edit` with the captured node-id strings (see Create-Issue Step 8.4). |
 | `sub_issue_write` returns "not found" / "invalid" | Likely the wrong field was passed: `sub_issue_id` must be the child's **global numeric ID** (`id` from `issue_write` / `issue_read`), not its `issue_number`. Re-fetch the child via `issue_read` and retry. Cross-repo within the same org is supported natively — no GraphQL fallback needed. Only fall back to `gh api graphql` `addSubIssue` mutation if the MCP call genuinely fails after this correction. |
@@ -262,6 +294,6 @@ After displaying the board, ask via AskUserQuestion:
 
 ## Related Skills
 
-- **`/github:setup`** — Configure project defaults including `github_project_number`
+- **`/github:setup`** — Configure project defaults including the project board
 - **`/github:feature`** — Feature branch workflow; conditionally moves linked issues to "In review"
 - **`/github:release`** — Publish draft releases

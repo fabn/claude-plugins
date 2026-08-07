@@ -67,7 +67,24 @@ query($owner: String!, $name: String!, $endCursor: String) {
 
 `issueType` is null on repositories without issue types enabled — treat it as cosmetic and never branch behaviour on it.
 
-### Drilling into a single issue
+### Resolving arbitrary references
+
+```bash
+fetch-graph.sh --resolve owner/repo#15 owner/repo#320
+```
+
+Returns `resolved[]` with `ref`, `kind` (`issue` / `pull_request` / `missing`), `state` (`OPEN` / `CLOSED` / `MERGED`) and `title`.
+
+Two blind spots make this necessary rather than convenient:
+
+1. **The sweep is `states: OPEN`.** A closed issue is simply absent, so a declared external edge pointing at one cannot be falsified by the swept data — it renders as a live blocker indefinitely. Observed in practice: an edge stayed on the map for a day after its blocker was closed.
+2. **`issues()` excludes pull requests.** Half of the in-flight work in a busy repository is a PR, referenced in issue bodies exactly as issues are. Without resolution those numbers come back as "missing" and an item under active implementation looks untouched.
+
+### One gotcha in the implementation
+
+The query asks for `issue(number:)` **and** `pullRequest(number:)` under the same number. Exactly one is always null, and GraphQL reports that as a `NOT_FOUND` error alongside otherwise valid data — which makes `gh` exit **non-zero on every successful lookup**. The exit code is therefore meaningless here; what decides is whether the body parses and carries a node. Treating the exit code as authoritative turns every lookup into a failure, which is precisely the first version of this code.
+
+## Drilling into a single issue
 
 When the user asks about one issue after seeing the map, this is small enough to run inline:
 

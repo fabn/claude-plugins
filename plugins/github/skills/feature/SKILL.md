@@ -13,37 +13,73 @@ description: |
 
 # GitHub Feature Skill
 
-Guides the full feature development workflow: branch → stage → commit → push → PR. Reads project config from CLAUDE.md and uses Git MCP tools for all local operations.
+Guides the full feature development workflow: branch → stage → commit → push → PR. Reads project config via the plugin's shared resolver and uses Git MCP tools for all local operations.
 
 ## Tools Used
 
 - **Git MCP** (`mcp__git__*`): `git_branch`, `git_status`, `git_diff_unstaged`, `git_diff_staged`, `git_log`, `git_add`, `git_commit`, `git_create_branch`, `git_checkout`
 - **GitHub MCP** (`mcp__plugin_github_github__*` when this plugin's bundled GitHub MCP server is active): `create_pull_request`, `search_issues`, `list_issues`, `projects_list`
 - **Bash**: `git push -u origin <branch>` (push to remote — NOT `push_files`); `gh project item-edit` (conditional board update)
-- **Read**: local CLAUDE.md for project config
+- **Bash**: `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh` for project config
 - **AskUserQuestion**: confirm branch name, commit message, PR details
 
 > **MCP server name may differ.** The prefix `mcp__plugin_github_github__` is used when this plugin's bundled GitHub MCP server is active. If the host project ships its own GitHub MCP server (often `mcp__github__*`), the bundled one may be disabled to avoid conflicts — discover the actual prefix from the available tool list and substitute it. Verb names are unchanged.
+
+## Config
+
+Resolved by the shared script, never by parsing files inline:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
+```
+
+It returns `{ "source", "path", "config" }`. **Act on `source` before using `config`:**
+
+| `source` | Meaning | What to do |
+|---|---|---|
+| `json` | `.claude/github.json` — the current location | Nothing, proceed |
+| `claude-md` | the deprecated `<!-- github-plugin-config -->` block | Stop and offer migration (below) |
+| `none` | no configuration anywhere | Proceed with this skill's defaults |
+
+The `config` object is normalized to the same shape either way:
+
+```json
+{
+  "mainBranch": "main",
+  "branchPrefix": "feature",
+  "project": { "number": 2, "owner": "acme" },
+  "roadmap": { "repos": ["acme/platform"], "externalEdges": [] }
+}
+```
+
+### On `source: "claude-md"`
+
+Tell the user their config is in the deprecated location and offer to move it:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/migrate-config.sh"          # add --dry-run to preview
+```
+
+It writes `.claude/github.json`, strips the block from `CLAUDE.md` and leaves the surrounding prose intact. If they decline, continue with the values returned — the fallback is removed in 0.8.0, and saying so now is the point of the prompt.
+
+**Do not skip the prompt.** Several skills here degrade quietly without config rather than failing, so once the fallback is gone a silent fallback today and a silent failure tomorrow look identical to the user.
 
 ## Workflow
 
 ### Step 1: Read Local Config
 
-Read the project's `CLAUDE.md` (in the current directory) and look for a `<!-- github-plugin-config -->` block:
+Run the shared resolver and handle `source` first (see [Config](#config)):
 
-```markdown
-<!-- github-plugin-config -->
-<!-- github_main_branch: main -->
-<!-- github_branch_prefix: feature -->
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
 ```
 
-Extract:
-- `github_main_branch` — default `main`
-- `github_branch_prefix` — default `feature`
-- `github_project_number` — optional; used in Step 8a for board status update
-- `github_project_owner` — optional; used in Step 8a for board status update
+Use:
+- `config.mainBranch` — default `main`
+- `config.branchPrefix` — default `feature`
+- `config.project` — optional; used in Step 8a for the board status update
 
-If no CLAUDE.md or no config block, proceed with defaults silently.
+With `source: "none"`, proceed with the defaults silently.
 
 ### Step 2: Detect Repo State
 
@@ -54,11 +90,11 @@ Use this to determine which path to take in Step 3.
 
 ### Step 3: Branch Management
 
-**If on the main branch** (`github_main_branch`):
+**If on the main branch** (`config.mainBranch`):
 
 1. Ask the user to describe the feature/change (one sentence)
 2. Suggest a branch type using AskUserQuestion with options:
-   - `feature` (default from `github_branch_prefix`)
+   - `feature` (default from `config.branchPrefix`)
    - `fix`
    - `docs`
    - `chore`
@@ -127,7 +163,7 @@ Collect:
   - `Closes #N` for issues this PR resolves
   - `Refs #N` for related issues that are not fully closed
 - **Head**: current branch
-- **Base**: `github_main_branch` from config (default: `main`)
+- **Base**: `config.mainBranch` (default: `main`)
 
 Confirm title and body with AskUserQuestion before creating.
 
@@ -139,7 +175,7 @@ Do **not** add "Generated with Claude Code" or any attribution to the PR body.
 
 After the PR is created, check both conditions:
 
-1. `github_project_number` is set in CLAUDE.md
+1. `config.project.number` is set
 2. At least one issue was linked to the PR in Step 7
 
 If **both conditions are true**, ask via AskUserQuestion:
@@ -188,4 +224,4 @@ Adjust based on what actually happened (e.g., if no issues were linked, omit tha
 
 ## Reference Files
 
-- No additional reference files — project config is read from CLAUDE.md at runtime
+- No additional reference files — project config is resolved by `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh` at runtime

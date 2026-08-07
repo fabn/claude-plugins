@@ -20,7 +20,8 @@ Guides the full "address review" loop for an open pull request: reads all unreso
 - **GitHub MCP** (`mcp__plugin_github_github__*` when this plugin's bundled GitHub MCP server is active): `pull_request_read`, `add_reply_to_pull_request_comment`, `pull_request_review_write`, `update_pull_request`
 - **Git MCP** (`mcp__git__*`): `git_status`, `git_diff_unstaged`, `git_diff_staged`, `git_add`, `git_commit`, `git_branch`
 - **Bash**: `gh pr view`, `git push`, `gh api` (GraphQL for resolving threads)
-- **Read**: source files to understand context; CLAUDE.md for `github_main_branch`
+- **Read**: source files to understand context
+- **Bash**: `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh` for `config.mainBranch`
 - **Edit / MultiEdit**: implement code changes from review comments
 - **AskUserQuestion**: confirm per-comment action plan, confirm commit message, confirm before pushing, confirm thread resolution
 

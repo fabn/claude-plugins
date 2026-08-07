@@ -40,39 +40,81 @@ So a project spanning two organizations has edges that exist only in prose. Thos
 
 ## Config
 
-Read from the project's `CLAUDE.md` `<!-- github-plugin-config -->` block, the same block `github:pm` and `github:feature` use:
+Resolved by the shared script, never by parsing files inline:
 
-```markdown
-<!-- github-plugin-config -->
-<!-- github_roadmap_repos: acme-corp/platform, acme-corp/app, acme-labs/shared-modules -->
-<!-- github_roadmap_external_edges: acme-corp/app#310 <- acme-labs/shared-modules#15; acme-corp/app#306 <- acme-corp/platform#404 -->
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
+```
+
+It returns `{ "source", "path", "config" }`. **Act on `source` before using `config`:**
+
+| `source` | Meaning | What to do |
+|---|---|---|
+| `json` | `.claude/github.json` — the current location | Nothing, proceed |
+| `claude-md` | the deprecated `<!-- github-plugin-config -->` block | Stop and offer migration (below) |
+| `none` | no configuration anywhere | Proceed with this skill's defaults |
+
+The `config` object is normalized to the same shape either way:
+
+```json
+{
+  "mainBranch": "main",
+  "branchPrefix": "feature",
+  "project": { "number": 2, "owner": "acme" },
+  "roadmap": { "repos": ["acme/platform"], "externalEdges": [] }
+}
+```
+
+### On `source: "claude-md"`
+
+Tell the user their config is in the deprecated location and offer to move it:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/migrate-config.sh"          # add --dry-run to preview
+```
+
+It writes `.claude/github.json`, strips the block from `CLAUDE.md` and leaves the surrounding prose intact. If they decline, continue with the values returned — the fallback is removed in 0.8.0, and saying so now is the point of the prompt.
+
+**Do not skip the prompt.** Several skills here degrade quietly without config rather than failing, so once the fallback is gone a silent fallback today and a silent failure tomorrow look identical to the user.
+
+This skill reads `config.roadmap`:
+
+```json
+{
+  "roadmap": {
+    "repos": ["acme-corp/platform", "acme-corp/app", "acme-labs/shared-modules"],
+    "externalEdges": [
+      { "blocked": "acme-corp/app#310", "by": "acme-labs/shared-modules#15" }
+    ]
+  }
+}
 ```
 
 | Key | Meaning |
 |---|---|
-| `github_roadmap_repos` | Comma-separated `owner/repo` list to include. If absent, use the current repository only. |
-| `github_roadmap_external_edges` | Semicolon-separated `<blocked> <- <blocker>` pairs, each a fully qualified `owner/repo#number`. Optional. Only for links GitHub cannot express. |
+| `repos` | `owner/repo` list to include. If absent, use the current repository only. |
+| `externalEdges` | `{blocked, by}` pairs, each side a fully qualified `owner/repo#number`. Optional. Only for links GitHub cannot express. |
 
-Keep `github_roadmap_external_edges` short. If it grows past a handful of entries, that is a signal the repositories belong in one organization, not that the list needs a better format.
+Keep `externalEdges` short. If it grows past a handful of entries, that is a signal the repositories belong in one organization, not that the list needs a better format.
 
 ## Tools Used
 
 - **Bash**: `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/scripts/fetch-graph.sh` — fetches and normalizes the graph. Requires `gh` (authenticated) and `jq`.
 - **Bash**: `gh repo view --json owner,name` to detect the current repository when config is absent.
-- **Read**: the project's `CLAUDE.md` for the config block.
+- **Bash**: `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh` for the project config.
 - **GitHub MCP** (optional): `issue_read` when the user drills into a single issue after seeing the map.
 
 ## Workflow
 
 ### Step 1: Resolve Configuration
 
-Read `CLAUDE.md` and parse the `<!-- github-plugin-config -->` block.
+Run `read-config.sh` and act on `source` before anything else (see [Config](#config)).
 
-- **`github_roadmap_repos` present**: use it.
+- **`config.roadmap.repos` present**: use it.
 - **Absent**: run `gh repo view --json owner,name` and use the current repository alone. Say so explicitly in the output — a single-repo map from a multi-repo project looks complete and is not. Offer to add the key.
 - **Not in a git repository and no config**: stop, and ask which repositories to map.
 
-Parse `github_roadmap_external_edges` if present. Ignore malformed entries rather than failing, but list them in the output so a typo is visible instead of silently dropping an edge.
+Take `config.roadmap.externalEdges` if present. Ignore malformed entries rather than failing, but list them in the output so a typo is visible instead of silently dropping an edge.
 
 ### Step 2: Fetch the Graph
 
@@ -88,13 +130,27 @@ It emits one JSON object on stdout: `issues`, `edges`, `counts`, `failed`. Pagin
 
 Read `failed` before anything else. Never render a partial map as if it were whole.
 
+Then resolve, in a second pass, every reference the sweep structurally cannot see — each configured external edge, plus any number an issue body leans on:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/skills/roadmap/scripts/fetch-graph.sh" \
+  --resolve owner/repo-a#15 owner/repo-b#320
+```
+
+This is not optional tidiness, it closes two blind spots:
+
+- **The sweep fetches only OPEN issues.** A declared external edge naming an issue that has since been **closed** has nothing in the data to be checked against, so without this it renders as a live blocker for ever. This has happened.
+- **`issues()` excludes pull requests.** Work in flight as a PR is invisible, so an item actively being implemented looks like an item nobody has started.
+
+`resolved[]` gives `kind` (`issue` / `pull_request` / `missing`) and `state` (`OPEN` / `CLOSED` / `MERGED`).
+
 ### Step 3: Merge and Resolve
 
 Build one graph across all repositories:
 
 1. Take the hierarchy from each issue's `parent` and `children`.
 2. Take the dependency edges from `edges` — already deduplicated by the script.
-3. Add the configured external edges, marking them as declared rather than derived.
+3. Add the configured external edges, marking them as declared rather than derived — **using the state from `resolved`, never assuming they are open.**
 4. Compute, for each open issue: **blocked** if any blocker has `byState = OPEN`, **unblocked** otherwise. A closed blocker is satisfied, not a block.
 
 ### Step 4: Report What the Data Cannot Tell You
@@ -102,7 +158,8 @@ Build one graph across all repositories:
 Before rendering, surface the gaps. This step is what separates a map that is trusted from one that is merely drawn:
 
 - **Isolated issues** — open issues with no parent, no sub-issues and no dependency edges. They are invisible in a tree and are usually either genuinely standalone or a missing link nobody recorded. List them separately rather than omitting them.
-- **Dangling external edges** — a configured edge naming an issue that does not exist or is already closed. A closed one is a config entry to delete.
+- **Dangling external edges** — from `resolved`: `kind: "missing"` is a typo or a deleted issue, `state: "CLOSED"` or `"MERGED"` is a satisfied blocker and a config entry to delete. Say which, and offer to remove it.
+- **Work in flight as a pull request** — a `resolved` entry with `kind: "pull_request"` and `state: "OPEN"` means the item is being implemented right now. An issue whose PR is open is not "not started", and rendering it as blocked-and-idle is the most misleading thing this skill can do.
 - **Repositories that failed to fetch** — from `failed`. Never render a partial map as if it were whole.
 - **Checksum mismatches** — for each entry in `counts`, compare `blockedBy` against the number of edges resolved for that issue. A shortfall means an edge was dropped somewhere, and the tree below is incomplete. Say so; do not quietly render it.
 
@@ -135,6 +192,8 @@ Depending on what the map shows:
 |-----------|--------|
 | `gh` CLI not installed or not authenticated | Stop, tell user to run `/github:setup` |
 | `jq` not installed | The script exits 69 naming it; tell the user to install `jq` |
+| An external edge resolves to `CLOSED`/`MERGED` | The blocker is satisfied — render it so, and offer to delete the config entry |
+| A referenced number resolves to an open PR | Render the item as in progress, not as blocked |
 | No config and not in a git repository | Ask which repositories to map |
 | Config lists a repository the token cannot read | It appears in `failed` with its error; report it by name, render the rest |
 | GraphQL returns `FORBIDDEN` on a dependency field | The repository is on a plan or preview that lacks it — render hierarchy only and say dependencies were unavailable |
