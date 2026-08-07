@@ -47,6 +47,16 @@ Make the token available to Claude's environment using any of these methods:
 
 > **Note:** OAuth flow support may remove the token requirement in the future.
 
+### `jq` (for `/github:roadmap`)
+
+The roadmap skill's `fetch-graph.sh` normalizes the GraphQL response with `jq`.
+
+```bash
+jq --version   # any 1.6+
+```
+
+Install with `brew install jq` (macOS) or your distribution's package manager. The script exits with a clear message if it is missing.
+
 ### `uvx` (for git MCP server)
 
 The `git` MCP server requires `uvx` (part of [uv](https://github.com/astral-sh/uv)):
@@ -215,7 +225,7 @@ Issue and project board management — four operations:
 Cross-repository dependency map, regenerated on every run:
 
 1. Reads `github_roadmap_repos` from project config (falls back to the current repository, and says so)
-2. Fetches each repository's issue graph with one `gh api graphql` call — hierarchy, `blockedBy` and `blocking`
+2. Fetches each repository's issue graph via the bundled `scripts/fetch-graph.sh` — hierarchy, `blockedBy` and `blocking`, paginated and deduplicated
 3. Merges any declared cross-organization edges, which GitHub's dependencies cannot express
 4. Reports what the data cannot tell you: isolated issues, dangling config entries, repositories that failed to fetch
 5. Renders the tree — `✅` done, `▶` actionable now, `⏸` blocked (naming the blocker), `⚠` blocked across an organization boundary

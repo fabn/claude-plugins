@@ -20,7 +20,7 @@ Render the current dependency map across one or more repositories: issue hierarc
 
 **This skill deliberately does not write a roadmap file.** A checked-in roadmap is a copy of state that already lives in GitHub, and it starts lying the first time an issue is closed without it being updated. The graph is regenerated on every invocation instead, so it cannot go stale — if it is wrong, GitHub is wrong, and that is where the fix belongs.
 
-For the GraphQL queries and the reasoning behind them, see [reference/graphql-queries.md](reference/graphql-queries.md).
+Fetching is done by a bundled script, not by hand-written queries at runtime — see [reference/graph-data.md](reference/graph-data.md) for its contract and the reasoning behind it.
 
 ## What GitHub already knows, and the one thing it does not
 
@@ -57,7 +57,7 @@ Keep `github_roadmap_external_edges` short. If it grows past a handful of entrie
 
 ## Tools Used
 
-- **Bash**: `gh api graphql` — the only source that returns dependency *edges*. The GitHub MCP returns `blocked_by` / `blocking` as **counts only**, which is enough to verify a result but not to build a graph.
+- **Bash**: `${CLAUDE_PLUGIN_ROOT}/skills/roadmap/scripts/fetch-graph.sh` — fetches and normalizes the graph. Requires `gh` (authenticated) and `jq`.
 - **Bash**: `gh repo view --json owner,name` to detect the current repository when config is absent.
 - **Read**: the project's `CLAUDE.md` for the config block.
 - **GitHub MCP** (optional): `issue_read` when the user drills into a single issue after seeing the map.
@@ -74,24 +74,28 @@ Read `CLAUDE.md` and parse the `<!-- github-plugin-config -->` block.
 
 Parse `github_roadmap_external_edges` if present. Ignore malformed entries rather than failing, but list them in the output so a typo is visible instead of silently dropping an edge.
 
-### Step 2: Fetch Each Repository's Graph
+### Step 2: Fetch the Graph
 
-One GraphQL call per repository — see [reference/graphql-queries.md](reference/graphql-queries.md) for the query.
+Run the bundled script with every configured repository as an argument:
 
-Request open issues with `number`, `title`, `state`, `issueType`, `parent`, `subIssues`, `blockedBy` and `blocking`. Every edge node carries `repository { nameWithOwner }`, so cross-repository edges are identified without a second lookup.
+```bash
+"${CLAUDE_PLUGIN_ROOT}/skills/roadmap/scripts/fetch-graph.sh" owner/repo-a owner/repo-b
+```
 
-Paginate when a repository returns a full page. Never silently truncate: if pagination is stopped early for any reason, say how many issues were skipped.
+It emits one JSON object on stdout: `issues`, `edges`, `counts`, `failed`. Pagination, the both-ends deduplication of dependencies, and per-repository error isolation all happen inside it.
 
-Closed issues are not fetched, but they appear as edge nodes (a closed blocker is still returned by `blockedBy`) — which is exactly what is needed to tell "blocked" from "was blocked".
+**Do not hand-write GraphQL for this.** The query has several details that are easy to get subtly wrong and that fail silently when they are — the cursor variable must be named `$endCursor` for `--paginate` to work, the same relationship is reported from both ends and must be deduplicated, and closed issues must be kept when they appear as edge nodes. A script gets them right identically on every run.
+
+Read `failed` before anything else. Never render a partial map as if it were whole.
 
 ### Step 3: Merge and Resolve
 
 Build one graph across all repositories:
 
-1. Add every hierarchy edge (`parent` / `subIssues`).
-2. Add every dependency edge (`blockedBy` / `blocking`), deduplicating — a single relationship is reported from both ends.
+1. Take the hierarchy from each issue's `parent` and `children`.
+2. Take the dependency edges from `edges` — already deduplicated by the script.
 3. Add the configured external edges, marking them as declared rather than derived.
-4. Compute, for each open issue: **blocked** if any blocker is open, **unblocked** otherwise.
+4. Compute, for each open issue: **blocked** if any blocker has `byState = OPEN`, **unblocked** otherwise. A closed blocker is satisfied, not a block.
 
 ### Step 4: Report What the Data Cannot Tell You
 
@@ -99,7 +103,8 @@ Before rendering, surface the gaps. This step is what separates a map that is tr
 
 - **Isolated issues** — open issues with no parent, no sub-issues and no dependency edges. They are invisible in a tree and are usually either genuinely standalone or a missing link nobody recorded. List them separately rather than omitting them.
 - **Dangling external edges** — a configured edge naming an issue that does not exist or is already closed. A closed one is a config entry to delete.
-- **Repositories that failed to fetch** — never render a partial map as if it were whole.
+- **Repositories that failed to fetch** — from `failed`. Never render a partial map as if it were whole.
+- **Checksum mismatches** — for each entry in `counts`, compare `blockedBy` against the number of edges resolved for that issue. A shortfall means an edge was dropped somewhere, and the tree below is incomplete. Say so; do not quietly render it.
 
 ### Step 5: Render the Map
 
@@ -129,17 +134,19 @@ Depending on what the map shows:
 | Situation | Action |
 |-----------|--------|
 | `gh` CLI not installed or not authenticated | Stop, tell user to run `/github:setup` |
+| `jq` not installed | The script exits 69 naming it; tell the user to install `jq` |
 | No config and not in a git repository | Ask which repositories to map |
-| Config lists a repository the token cannot read | Report it by name, render the rest, do **not** fail the whole run |
+| Config lists a repository the token cannot read | It appears in `failed` with its error; report it by name, render the rest |
 | GraphQL returns `FORBIDDEN` on a dependency field | The repository is on a plan or preview that lacks it — render hierarchy only and say dependencies were unavailable |
-| A repository returns more issues than one page | Paginate; if stopped early, report how many were skipped |
+| A repository returns more issues than one page | Handled by the script's `--paginate`; nothing to do |
 | External edge references a non-existent issue | List it as dangling config, keep going |
 | External edge references a closed issue | Render it satisfied, suggest deleting the entry |
 | No open issues anywhere | Say so plainly — an empty map and a failed fetch must not look alike |
 
 ## Reference Files
 
-- [reference/graphql-queries.md](reference/graphql-queries.md) — the queries, pagination, and why the GitHub MCP cannot replace them
+- [reference/graph-data.md](reference/graph-data.md) — the script's output contract, the query it runs, and why the GitHub MCP cannot replace it
+- `scripts/fetch-graph.sh` — fetches and normalizes the graph; run it, do not reimplement it
 
 ## Related Skills
 
