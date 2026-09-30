@@ -227,7 +227,9 @@ Use **Edit** (not Write) for all changes to the existing workflow file. Preserve
 4. **If user chose split:** Remove the `pull_request` trigger from the main workflow. Remove `disable-releaser` and `disable-autolabeler` inputs. Create `.github/workflows/autolabeler.yml` using the `## v7 Autolabeler Workflow Template` section from `reference/config-reference.md`.
 5. **If user chose monolithic:** Update the action version and token only. Keep `pull_request` trigger and `disable-releaser` / `disable-autolabeler` flags. Update permissions to `pull-requests: write` on the job (monolithic still requires write for labeling).
 
-**CRITICAL: Do NOT modify `.github/release-drafter.yml`** during the upgrade. The v6 and v7 config structures are identical — the config file requires no changes. Only modify the config if the user explicitly requests category or label changes.
+**The config file is compatible, not current.** A v6 `.github/release-drafter.yml` parses under v7 and keeps drafting correctly, so the upgrade does not depend on rewriting it. But v7 deprecates `categories[].labels`, `categories[].label`, `exclude-labels`, `include-labels`, `exclude-paths`, `include-paths` and `version-resolver` — most of what a v6 config is made of. Do not tell the user the two are identical.
+
+Read `## Deprecated v6 Config Fields` from `reference/config-reference.md`, report which deprecated fields their config uses, and ask via AskUserQuestion whether to translate them now or leave the config as is. Only touch the config on a yes, and keep the `autolabeler:` stanza exactly as it is — its schema is unchanged.
 
 ### Upgrade Step U5: Commit and Report
 

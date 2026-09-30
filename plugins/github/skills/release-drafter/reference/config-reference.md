@@ -70,6 +70,8 @@ jobs:
 
 Complete `.github/release-drafter.yml` configuration file for v7. Works with semver version resolution. For CalVer (date-based versioning), see `date-based-versioning.md`.
 
+v7 expresses matching through `when` and does everything with categories. The v6 spellings still parse as compatibility shorthands, so a v6 config keeps working — but write new configs this way, and see `## Deprecated v6 Config Fields` for the mapping when migrating one.
+
 ```yaml
 # .github/release-drafter.yml
 name-template: 'v$RESOLVED_VERSION'   # release name shown on GitHub
@@ -77,35 +79,47 @@ tag-template: 'v$RESOLVED_VERSION'    # git tag created when draft is published
 
 categories:
   - title: '🚀 Features'
-    labels:
-      - 'feature'
-      - 'enhancement'
+    when:
+      labels:
+        - 'feature'
+        - 'enhancement'
   - title: '🐛 Bug Fixes'
-    labels:
-      - 'fix'
-      - 'bugfix'
-      - 'bug'
+    when:
+      labels:
+        - 'fix'
+        - 'bugfix'
+        - 'bug'
   - title: '🛠️ Maintenance'
-    label: 'chore'
+    when:
+      label: 'chore'
   - title: '🤖 Dependencies'
-    label: 'dependencies'
+    when:
+      label: 'dependencies'
+
+  # Drops matching changes before categorization. A non-changelog category
+  # needs no title: it renders nothing.
+  - type: pre-exclude
+    when:
+      labels:
+        - 'skip-changelog'
+
+  # Version resolution, kept separate from changelog inclusion. Do NOT use
+  # with CalVer — see date-based-versioning.md. When several categories
+  # contribute, the most severe increment wins.
+  - type: version-resolver
+    semver-increment: major
+    when:
+      labels: ['major']
+  - type: version-resolver
+    semver-increment: minor
+    when:
+      labels: ['minor']
+  # No `when`: the fallback when no other version-resolver category matches.
+  - type: version-resolver
+    semver-increment: patch
 
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
 change-title-escapes: '\<*_&'   # escape special markdown chars in PR titles
-
-exclude-labels:
-  - 'skip-changelog'   # PRs with this label are omitted from the changelog
-
-version-resolver:
-  # Determines which semver component to bump based on PR labels.
-  # Do NOT use with CalVer — see date-based-versioning.md.
-  major:
-    labels: ['major']
-  minor:
-    labels: ['minor']
-  patch:
-    labels: ['patch']
-  default: patch   # default bump when no version label is present
 
 template: |
   ## Changes
@@ -173,10 +187,10 @@ jobs:
 
 ## v6 Config Template
 
-Complete `.github/release-drafter.yml` configuration for v6. Structurally identical to v7 config — the differences between v6 and v7 are in the workflow files, not the config file. Existing v6 configs do not need to change when upgrading to v7.
+Complete `.github/release-drafter.yml` configuration for v6. A v6 config still parses under v7 and keeps working, so an upgrade is not blocked on rewriting it — but v7 deprecates most of what it uses. See `## Deprecated v6 Config Fields`.
 
 ```yaml
-# .github/release-drafter.yml (v6 — same structure as v7)
+# .github/release-drafter.yml (v6)
 name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
 
@@ -243,10 +257,33 @@ name-template: '$RESOLVED_VERSION'
 tag-template: '$RESOLVED_VERSION'
 ```
 
-**Categories:** Add or remove category blocks as needed. Each category requires a `title` and either `label` (single string) or `labels` (list). PRs that match no category appear under an uncategorized group.
+**Categories:** Add or remove category blocks as needed. A `type: changelog` category (the default) requires a `title`; the other types render nothing and do not. Matching goes under `when`, which takes either a single condition or a list of conditions combined with OR. PRs that match no category appear under an uncategorized group.
 
 **Autolabeler rules:** Each rule under `autolabeler:` supports `branch` (regex list), `files` (glob list), and `title` (regex list). A PR matches a label rule if ANY of the listed patterns match. Multiple rules can apply to the same PR.
 
-**`version-resolver`:** Controls semver bump when no explicit version label is on a PR. Do NOT use `version-resolver` with CalVer — when using the `version:` action input to inject a date-based version, the `version-resolver` section is meaningless and may cause confusion. See `date-based-versioning.md` for the CalVer setup.
+**Version resolution:** `type: version-resolver` categories decide the semver bump, and a `semver-increment` on a `type: changelog` category works too when one category should both appear in the notes and drive the bump. Do NOT use either with CalVer — when the `version:` action input injects a date-based version, resolution is meaningless and only causes confusion. See `date-based-versioning.md` for the CalVer setup.
 
 **`$RESOLVED_VERSION` with `version:` input override:** When the `version:` input is provided to the action (e.g., for CalVer injection), `$RESOLVED_VERSION` reflects the injected value. This means `name-template: 'v$RESOLVED_VERSION'` will produce `v2026.04.02` when `version: 2026.04.02` is passed as input.
+
+---
+
+## Deprecated v6 Config Fields
+
+Every field below still parses under v7 as a compatibility shorthand, so a v6 config keeps drafting releases correctly. They are marked `@deprecated` in v7's schema (`src/actions/drafter/config/schemas/config.schema.ts`), so treat a config using them as legacy rather than current.
+
+| v6 field | v7 replacement |
+|---|---|
+| `categories[].labels` | `categories[].when.labels` |
+| `categories[].label` | `categories[].when.label` |
+| `exclude-labels` | a category with `type: pre-exclude` and `when.labels` |
+| `include-labels` | a category with `type: pre-include` and `when.labels` |
+| `exclude-paths` | a category with `type: pre-exclude` and `when.paths` |
+| `include-paths` | a category with `type: pre-include` and `when.paths` |
+| `version-resolver` | categories with `type: version-resolver` and `semver-increment` |
+
+Two things to get right when translating `version-resolver`:
+
+- `default:` becomes a `type: version-resolver` category with **no `when`**, which the schema treats as the fallback when no other version-resolver category matches. A `patch: labels: ['patch']` entry alongside `default: patch` is redundant and can be dropped.
+- `title` is required only for `type: changelog` categories. Omit it on `pre-include`, `pre-exclude` and `version-resolver` categories: they render nothing.
+
+The `autolabeler:` stanza is unchanged in v7 — `label`, `files`, `branch`, `title` and `body`, with no deprecations.
