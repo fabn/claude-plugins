@@ -19,7 +19,7 @@ After configuring release-drafter with this skill, use `/github:release` to publ
 
 ## Tools Used
 
-- **Bash**: `ls`, `cat` — detect existing setup in `.github/`, read workflow and config files; `check-jsonschema` — validate the config against v7's published JSON Schema
+- **Bash**: `ls`, `cat` — detect existing setup in `.github/`, read workflow and config files; a JSON Schema validator to check the config against v7's published schema (see `## Validating a Config` — nothing is assumed to be installed)
 - **Read**: Load reference docs at runtime — `reference/config-reference.md`, `reference/migration-checklist.md`, `reference/date-based-versioning.md` — for templates and migration steps
 - **Write**: Create new workflow and config files (fresh setup path)
 - **Edit**: Patch existing workflow files (upgrade path) — preserves existing config, categories, and labels
@@ -141,7 +141,7 @@ Write all files using the Write tool.
 
 ### Step 7b: Validate the Config
 
-Before committing, validate `.github/release-drafter.yml` against v7's published JSON Schema. Read `## Validating a Config` from `reference/config-reference.md` for the command and, more importantly, for what a pass does not prove — misspelled keys and deprecated fields both validate clean. Report failures to the user and fix them before Step 8.
+Before committing, validate `.github/release-drafter.yml` against v7's published JSON Schema. Read `## Validating a Config` from `reference/config-reference.md` for the invocations — no validator is assumed to be installed, so try the listed options and skip the step if none runs, saying so rather than implying the config was checked. More importantly, read what a pass does not prove: misspelled keys and deprecated fields both validate clean. Report failures and fix them before Step 8.
 
 ### Step 8: Commit Files
 

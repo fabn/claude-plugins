@@ -294,13 +294,20 @@ The `autolabeler:` stanza is unchanged in v7 — `label`, `files`, `branch`, `ti
 
 v7 publishes a JSON Schema generated from its Zod schemas, so a config can be checked without Node or a workflow run:
 
+Use whichever of these the machine can run — do not assume any of them is present:
+
 ```bash
-check-jsonschema \
-  --schemafile https://raw.githubusercontent.com/release-drafter/release-drafter/v7/schema.json \
-  .github/release-drafter.yml
+# No install: uvx (uv) or pipx fetch it on demand
+uvx check-jsonschema --schemafile <schema-url> .github/release-drafter.yml
+pipx run check-jsonschema --schemafile <schema-url> .github/release-drafter.yml
+
+# Already installed (brew install check-jsonschema, pip install check-jsonschema)
+check-jsonschema --schemafile <schema-url> .github/release-drafter.yml
 ```
 
-`autolabeler/schema.json` at the same path validates the `autolabeler:` stanza. Any JSON Schema draft 2020-12 validator works; `check-jsonschema` is convenient because it reads YAML directly.
+where `<schema-url>` is `https://raw.githubusercontent.com/release-drafter/release-drafter/v7/schema.json`, and `.../v7/autolabeler/schema.json` for the `autolabeler:` stanza.
+
+`check-jsonschema` is a Python CLI from the python-jsonschema project; it is used here only because it reads YAML directly. Any JSON Schema draft 2020-12 validator does the job — `ajv-cli` via `npx`, for instance, once the YAML is converted to JSON. If none is available, say so and skip validation rather than treating the config as verified.
 
 **What it catches:** invalid enum values (`type`, `semver-increment`, `paths-mode`), wrong types (`labels` as a string rather than an array), and malformed structure.
 
