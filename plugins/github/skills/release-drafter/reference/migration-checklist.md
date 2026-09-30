@@ -209,4 +209,8 @@ Step-by-step checklist for migrating from v6 to v7. Follow in order.
 
 9. **Report the deprecated fields in the config:** the rest of a v6 config parses under v7 but is deprecated. List which ones it uses and offer to translate them — see `## Deprecated v6 Config Fields` in `config-reference.md`. The upgrade works either way; do not present the config as already current.
 
-10. **Test:** Push a commit to main and verify the release draft is updated. Open a pull request and verify labels are applied automatically. Version resolution only runs on push, so check the drafted version number is what you expect.
+10. **If the config was translated, land it with the workflow bump:** a v7-only config fails a v6 action outright (v6 sets `additionalProperties: false`). Same commit, or stacked on top — never the config alone on the default branch.
+
+11. **Validate:** run the config against v7's published JSON Schema, and against the v6 schema to confirm the ordering constraint above. See `## Validating a Config` in `config-reference.md`, including what a passing validation does not prove.
+
+12. **Test:** Push a commit to main and verify the release draft is updated. Open a pull request and verify labels are applied automatically. Version resolution only runs on push, so check the drafted version number is what you expect.

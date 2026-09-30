@@ -287,3 +287,26 @@ Two things to get right when translating `version-resolver`:
 - `title` is required only for `type: changelog` categories. Omit it on `pre-include`, `pre-exclude` and `version-resolver` categories: they render nothing.
 
 The `autolabeler:` stanza is unchanged in v7 — `label`, `files`, `branch`, `title` and `body`, with no deprecations.
+
+---
+
+## Validating a Config
+
+v7 publishes a JSON Schema generated from its Zod schemas, so a config can be checked without Node or a workflow run:
+
+```bash
+check-jsonschema \
+  --schemafile https://raw.githubusercontent.com/release-drafter/release-drafter/v7/schema.json \
+  .github/release-drafter.yml
+```
+
+`autolabeler/schema.json` at the same path validates the `autolabeler:` stanza. Any JSON Schema draft 2020-12 validator works; `check-jsonschema` is convenient because it reads YAML directly.
+
+**What it catches:** invalid enum values (`type`, `semver-increment`, `paths-mode`), wrong types (`labels` as a string rather than an array), and malformed structure.
+
+**What it does not catch, so do not present a pass as a clean bill of health:**
+
+- **Misspelled keys.** The v7 schema leaves `additionalProperties` unset, so `exclude-label` instead of `exclude-labels`, or `labls` inside a `when`, both validate clean and are then silently ignored at runtime.
+- **Deprecated fields.** The published schema carries no `deprecated` markers — those exist only as JSDoc in the TypeScript source. A v6 config validates perfectly against the v7 schema. Check deprecations against the list in `## Deprecated v6 Config Fields` instead.
+
+Validating against the **v6** schema (`?ref=v6`) is the way to confirm the ordering constraint in a stacked upgrade: v6 sets `additionalProperties: false` and rejects `when`, `type` and `semver-increment` outright, so a v7-only config landing while the action is still v6 fails the workflow rather than degrading quietly.
