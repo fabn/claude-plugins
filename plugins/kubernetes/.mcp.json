@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "kubernetes.kubernetes-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "kubernetes-mcp-server@latest",
+        "--read-only"
+      ]
+    }
+  }
+}
