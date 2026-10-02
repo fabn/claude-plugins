@@ -32,11 +32,15 @@ previewed and applied — comes from `.claude/kubernetes.local.md`, never from
 assumption. Schema: `reference/configuration.md`.
 
 The method and its traps are in `reference/method.md`; the queries are in
-`reference/metric-queries.md`. Read both before computing anything. Two traps
-there are not optional reading, because each one silently produces a confident
-wrong answer: the metrics backend's **default rollup averages within buckets**,
-which hides short spikes entirely, and **`memory.usage` counts page cache**,
-which overstates I/O-heavy containers several-fold.
+`reference/metric-queries.md`. Read both before computing anything. Several
+traps there are not optional reading, because each one silently produces a
+confident wrong answer rather than an error: the metrics backend's **default
+rollup averages within buckets**, hiding short spikes entirely; **`memory.usage`
+counts page cache**, overstating I/O-heavy containers several-fold; a
+**cross-series `sum:` over a window longer than pod lifetime** totals pods that
+never coexisted; **`N/A` is unresolved, not absent**, and discarding it throws
+away the StatefulSets; and **replica counts derived from pod names** both inflate
+and silently delete findings.
 
 ## The one rule that governs everything
 
@@ -90,7 +94,7 @@ bounded choice.
 Run the discovery query from `reference/metric-queries.md` for each configured
 namespace, grouped by cluster and workload.
 
-- Filter out the synthetic `N/A` grouping value — it collects series carrying no workload tag and is not a workload.
+- **Split the `N/A` grouping value; never discard it.** `N/A` means the workload tag was unresolved, not that there is no workload. StatefulSet pods carry no deployment tag, so on any cluster with an operator-managed data tier that bucket is the databases and caches — often the largest reservations on the cluster. Regroup it by pod and owner kind per `reference/metric-queries.md`, and resolve the remainder against live owner references. Whatever is still unresolved is a reported finding that blocks a change to it, not noise.
 - Cross-check against the live cluster. In metrics but not live means deleted; live but not in metrics means new, with no history to size against. Note both; neither is a failure.
 - If a configured cluster or namespace returns nothing, say so and continue with the rest.
 
@@ -102,7 +106,7 @@ metrics tag value to a file and a block. Record per environment:
 
 - the current value of each configured knob
 - whether the value is conditional, and on which input it branches
-- the file and line, so the report can cite them and Step 9 can edit them
+- the file and line, so the report can cite them and Step 10 can edit them
 
 A knob absent from the declaration is not a knob set to zero. An absent memory
 limit means the container is unbounded; an absent request means the scheduler
@@ -115,9 +119,12 @@ anything: a recommendation against a stale declaration edits the wrong number.
 
 ### Step 4: Verify the Environment Discriminator
 
-The settings file names the input that is supposed to separate the environments,
-and where that input is observable on a live object. Neither is trusted until
-checked.
+Skip this step when `environments` has a single entry — there is nothing to
+discriminate, and verifying a placeholder proves nothing.
+
+Otherwise the settings file names the input that is supposed to separate the
+environments, and where that input is observable on a live object. Neither is
+trusted until checked.
 
 1. Confirm the configured `environment_discriminator.input` is the input the declarations actually branch on, using the Step 3 findings.
 2. Read the live objects in each configured namespace and compare the value at `environment_discriminator.observable_as` (a label, annotation, or container env var — a module or chart input is not a Kubernetes field, so it is only visible where the chart puts it) against the expected value for that environment.
@@ -148,12 +155,13 @@ Tolerate sparse data. A workload created three days ago has no 30-day average;
 record what exists, mark the rest unavailable, and never substitute a shorter
 window's value for a longer one without labelling it.
 
-### Step 6: Decide Whether the Observed Peak Is Trustworthy
+### Step 6: Decide Whether the Observed Figures Are Trustworthy
 
-The measurement window is evidence, not truth. Before any limit is sized against
-a peak, establish the four inputs in `reference/method.md` ("When the sample is
-not the ceiling"): the rollup cross-check, pod lifetime against the window,
-per-process ceilings, and whether the metric counts page cache.
+The measurement window is evidence, not truth. Before anything is sized,
+establish the five conditions in `reference/method.md` ("When the sample is not
+the ceiling"): the rollup cross-check, pod lifetime against the window,
+per-process ceilings, whether the metric counts page cache, and whether a
+cross-series sum outlived its pods.
 
 These are inputs to the computation, not commentary on it — each one can move a
 recommendation by an order of magnitude, and each overrides a multiplier derived
@@ -161,8 +169,19 @@ from the sample. Record which applied to which workload.
 
 ### Step 7: Compute
 
-Apply the formulas in `reference/method.md`. Honour the Step 6 findings over any
-sample-derived multiplier.
+First resolve replicas, which gates both request formulas — see the precondition
+in `reference/method.md`. `kubernetes_state.deployment.replicas_desired` is the
+only admissible source: never attribute pods to a workload by name, because a
+workload whose name prefixes its siblings absorbs their pods and one that
+matches nothing resolves to zero and vanishes from the report.
+
+Then apply the formulas, honouring the Step 6 findings over any sample-derived
+multiplier, and holding to three rules that each exist to stop a confident wrong
+answer:
+
+- A workload whose desired replicas average well below 1 scales to zero. Its average describes only its awake windows, so it is not a steady-state input and the CPU formula does not apply. Exclude it from savings and say why.
+- A workload whose replica count will not resolve is a reported finding, never an omission.
+- A recommendation within one rung of the current value is a no-op. Report the workload as adequately sized and leave it out of the recommendations — otherwise rounding manufactures under-provisioning.
 
 ### Step 8: Node Headroom
 
@@ -191,14 +210,14 @@ Present, in this order:
 
 1. **Measurement basis** — metric used for memory, rollup function and bucket size per query, windows. Without these the numbers are not reproducible.
 2. **Verified discriminator** — which input separates the environments and how it was confirmed.
-3. **Peak trust** — per workload, which of the four Step 6 conditions applied. Before the numbers, because it is what makes them readable.
+3. **Peak trust** — per workload, which of the five Step 6 conditions applied. Before the numbers, because it is what makes them readable.
 4. **Workload profile** — avg, typical peak, true peak, spike ratio, profile.
 5. **Recommendations** — current vs recommended per knob, with rationale and the file and line of the current value.
 6. **Limits left untouched** — every limit deliberately not lowered, and its current margin.
-7. **OOM events, restarts, evictions** — counts and affected workloads, with the window for each.
-8. **Risk flags** — current limit close to true peak; no limit at all; no request at all; request far below true peak.
-9. **Savings** — **request reductions only**, per workload and total, multiplied by replica count, with the replica count stated. Never include a limit change. Report a negative total honestly: finding a workload under-requested and raising it is the method working, not a failure.
-10. **Node headroom** — the Step 8 before-and-after.
+7. **Not sized, and why** — workloads that scale to zero, workloads whose replica count would not resolve, unresolved grouping buckets, and workloads marked `external`. A workload the method could not size is a finding; silence here is how the largest one in a run goes missing.
+8. **OOM events, restarts, evictions** — counts and affected workloads, with the window for each.
+9. **Risk flags** — current limit close to true peak; no limit at all; no request at all; request far below true peak.
+10. **Savings and node consequence — together, in one table.** Request reductions only, per workload and total, multiplied by the replica count from `replicas_desired`, with that count stated — and in the same table the Step 8 before-and-after showing whether the reduction frees a whole node. Never present the millicore total where it can be quoted on its own: only the node figure is money, and if nothing is freed, say nothing is freed. Report a negative total honestly: finding a workload under-requested and raising it is the method working, not a failure.
 
 ### Step 10: Apply, Behind Two Gates
 
@@ -232,7 +251,13 @@ Step 4, not with an environment input that was never confirmed.
 |---|---|
 | `.claude/kubernetes.local.md` missing | Run a discovery pass, propose candidates, confirm, write the file. Never guess. |
 | Settings file missing a required key | Name the key, ask for that value only, continue. |
-| Workload discovered but absent from the `workloads` map | Ask for its declaration location, add it to the file. Do not infer it from the name. |
+| Workload discovered but absent from the `workloads` map | Ask for its declaration location, or mark it `external: true` if another repository declares it. Do not infer it from the name. |
+| Workload's replica count will not resolve | Report it as a finding with no recommendation. Never drop it, and never fall back to counting or name-matching pods. |
+| Desired replicas average well below 1 | Scales to zero. Exclude from savings, refuse the awake-window average as a steady state, skip the boot-transient check. |
+| `N/A` or any unresolved grouping bucket | Split it by pod and owner kind, then by live owner references. Report whatever remains; do not change anything inside it and do not discard it. |
+| Recommendation within one rung of the current value | Report as adequately sized, exclude from recommendations. Do not report it as under- or over-provisioned. |
+| A longer window's aggregate implausibly exceeds a shorter one's | Treat as a cross-series sum that outlived its pods. Report the disagreement; do not take the maximum. |
+| Single environment configured | `environment_discriminator` may be omitted; skip Step 4 rather than verifying a placeholder. |
 | Metrics backend unreachable | Stop. The method has no fallback — there is nothing to size against. |
 | Live cluster unreachable | Stop before Step 4. The discriminator, the peak-trust inputs and Gate 2 all need live reads. |
 | Configured cluster or namespace returns no series | Report it, continue with the rest. |
@@ -255,5 +280,5 @@ Step 4, not with an environment input that was never confirmed.
 ## Reference Files
 
 - **`reference/configuration.md`** — settings schema, key by key, with a complete example.
-- **`reference/method.md`** — percentile proxy, profile classification, request and limit formulas, the four sample-is-not-the-ceiling conditions, rounding ladders, savings rule.
+- **`reference/method.md`** — percentile proxy, profile classification, request and limit formulas, the five sample-is-not-the-ceiling conditions, rounding ladders, savings rule.
 - **`reference/metric-queries.md`** — Datadog queries, metric names, unit conversions, the rollup trap, parallel plan.

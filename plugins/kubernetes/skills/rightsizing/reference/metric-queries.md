@@ -34,6 +34,22 @@ with `interval = peak_window_seconds / 20`. For a 21-day window that is
 `90720` (~25h, giving 21 buckets). Then cross-check against the fine-grained
 query below; if the two disagree sharply, the coarse one is still averaging.
 
+### The mirror trap: `sum:` across series over a long window
+
+The rollup trap collapses points *within* a bucket. The symmetric failure
+collapses *across series*: a `sum:` over a window much longer than typical pod
+lifetime adds series that came and went, totalling pods that never coexisted.
+
+Tell-tales, both seen in practice: a namespace's 30-day sum reading an order of
+magnitude above its own 7-day sum, and a namespace two days old totalling more
+than a long-lived one. Since the method takes the maximum of the per-window
+figures, the most inflated window wins by construction.
+
+So cross-check every aggregate against a live read before using it, and treat a
+window much longer than pod lifetime as unsafe for a cross-series sum. Where a
+long and a short window disagree implausibly, report the disagreement rather
+than taking the larger.
+
 ## Metric names and unit conversions
 
 | Metric | Backend unit | Report unit | Conversion |
@@ -62,9 +78,28 @@ avg:kubernetes.memory.working_set{{tags.namespace}:<ns>} by {{tags.cluster},{tag
 ```
 
 Window `now-1d`. Returns the live cluster/workload combinations, and on a first
-run proposes the `clusters` values for the settings file. Drop the synthetic
-`N/A` grouping value — it collects series carrying no workload tag, typically
-bare or transient pods, and is not a workload.
+run proposes the `clusters` values for the settings file.
+
+### `N/A` means unresolved, not absent — never discard it
+
+The synthetic `N/A` group collects every series carrying no workload tag. That
+is not a bag of transient pods to be dropped: **StatefulSet pods carry no
+deployment tag at all**, so on any cluster with an operator-managed data tier —
+the normal case — `N/A` *is* the databases and caches. Discarding it silently
+removes the workloads that most often hold the largest reservations; in one run
+it was 30% of the total request reduction available.
+
+Split the bucket instead, by regrouping on the pod tag and the owner kind:
+
+```
+avg:kubernetes.memory.working_set{{tags.namespace}:<ns>,{tags.workload}:N/A} by {{tags.pod},kube_stateful_set}
+avg:kubernetes.memory.working_set{{tags.namespace}:<ns>,{tags.workload}:N/A} by {{tags.pod},kube_daemon_set}
+```
+
+Resolve the remainder against the live cluster by reading the pods' owner
+references. An unresolved bucket that remains after splitting is a **reported
+finding that blocks a change to it**, not noise: say which pods are in it and
+that they were not sized, rather than omitting them.
 
 ## Averages
 
@@ -122,8 +157,18 @@ avg:kubernetes_state.deployment.replicas_desired{{tags.namespace}:<ns>} by {{tag
 ```
 
 Required by the savings formula, which multiplies per-pod request deltas by
-replicas. Cross-check against a live deployment read — an autoscaled workload's
-replica count is a moving target, so state which value was used and when.
+replicas, and a precondition for the request formulas themselves — run it before
+computing, not after.
+
+**This query is the only admissible source for a replica count.** Do not count
+pods and do not attribute pods to a workload by name: prefix collisions make one
+workload swallow its siblings' pods, and a workload matching nothing silently
+resolves to zero and disappears from the report.
+
+Cross-check against a live deployment read — an autoscaled workload's replica
+count is a moving target, so state which value was used and when. A desired
+count averaging well below 1 means the workload scales to zero, which changes
+how its averages may be used; see the precondition in `method.md`.
 
 ## Pod churn
 

@@ -55,6 +55,10 @@ workloads:
   web:
     declared_in: "charts/web/values-prod.yaml"
     block: "resources"
+  # Declared in another repository. Analysed and reported, never edited here,
+  # and not asked about again on the next run.
+  search:
+    external: true
 
 # The knob names as the wrapping module or chart spells them. Usually NOT the
 # Kubernetes field names. Omit a knob the project does not expose.
@@ -103,11 +107,13 @@ request at the typical peak rather than the average.
 |---|---|---|
 | `clusters` | Yes | Tag values, not display names. Proposed by the discovery query on a first run, before the file is written. |
 | `environments` | Yes | Environment label → `namespaces` list. One environment may span several namespaces. |
+| `environment_discriminator` | Only with 2+ environments | Omit it entirely when `environments` has a single entry — there is nothing to discriminate, and a placeholder that cannot be verified is worse than an absent key. |
 | `environment_discriminator.input` | Yes | The declared input that genuinely separates environments. |
 | `environment_discriminator.observable_as` | Yes | Where that input lands on a live object — a label, annotation, or container env var. Without it the discriminator cannot be verified and the run stops. |
 | `environment_discriminator.values` | Yes | Expected value per environment label. A mismatch against live objects stops the run. |
 | `resource_declarations` | Yes | Globs plus `syntax` (`terraform`, `helm-values`, `manifest`), which selects the edit strategy and the expected preview shape. |
-| `workloads` | Yes | Workload tag value → `declared_in` and `block`. A workload discovered but absent from this map is asked about, never inferred. |
+| `workloads` | Yes | Workload tag value → `declared_in` and `block`, or `external: true`. A workload discovered but absent from this map is asked about, never inferred. |
+| `workloads.<name>.external` | No | Declared in another repository. Analysed and reported, never edited, and not asked about again. |
 | `knobs` | Yes | Maps the four logical knobs to their real names. |
 | `tags.cluster` / `.namespace` / `.workload` / `.pod` | Yes | Grouping keys for every query. |
 | `tags.environment` / `.service` | No | For scoping queries where namespaces alone do not separate environments, and for grouping the report by service. |
@@ -117,6 +123,24 @@ request at the typical peak rather than the average.
 | `windows.averages` | No | Default `[1d, 7d, 30d]`. Formulas are stated against whatever this holds. |
 | `windows.peak` | No | Default `21d`. Also sets the coarse rollup interval (window ÷ 20). |
 | `windows.restarts` | No | Default `7d`. |
+
+## One cluster, several repositories
+
+The schema is per-project, but a cluster's workloads are often declared across
+several repositories. The settings file describes one of them, and the skill
+sees one at a time, so the two halves of a run have different scopes:
+
+- **The analysis is cluster-wide.** Metrics cover every workload in the configured namespaces regardless of who declares it, and the savings and node-headroom figures are only meaningful at that scope.
+- **Drift detection and both apply gates are per-repository.** They can only reach what this project declares.
+
+Mark a workload declared elsewhere with `external: true`. It then counts in the
+analysis and the report, is never edited, and is not asked about on the next
+run. Without the marker every run stops to ask about workloads this repository
+will never own.
+
+When the recommendations span repositories, say which ones, and give each
+repository's owner the subset that applies to them rather than one undivided
+list.
 
 ## Why the discriminator is configured, and then verified anyway
 

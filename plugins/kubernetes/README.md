@@ -56,19 +56,22 @@ Three keys exist because assuming them went wrong in practice:
 
 Loads or creates the settings, discovers clusters and workloads, parses the declared values, verifies the environment discriminator against live objects, gathers usage at two resolutions, establishes whether the observed peak can be trusted, computes, translates the result into node headroom, reports, and optionally applies.
 
-**Requests are the only savings lever.** A limit is not reserved by the scheduler, so lowering one frees no capacity and only narrows the margin before an OOM kill. Savings count request reductions and nothing else; memory limits move up for safety or down only to contain a known leak; CPU limits are recommended for removal as a correctness change. Every limit left deliberately untouched is listed as such, and request savings are reported separately from the node-level consequence — only the latter is money.
+**Requests are the only savings lever.** A limit is not reserved by the scheduler, so lowering one frees no capacity and only narrows the margin before an OOM kill. Savings count request reductions and nothing else; memory limits move up for safety or down only to contain a known leak; CPU limits are recommended for removal as a correctness change. Every limit left deliberately untouched is listed as such. Request savings are reported in the same table as their node consequence and never where the millicore total can be quoted alone, because only the node figure is money.
 
-**Four conditions make an observed peak something other than a ceiling,** and the skill establishes all four before sizing a limit, because each can move a recommendation by an order of magnitude:
+**Five conditions make an observed figure something other than what it looks like,** and the skill establishes all five before sizing anything, because each can move a recommendation by an order of magnitude — and each fails by producing a plausible number rather than an error:
 
 - The metrics backend's default rollup aggregates with `avg`, so a `max:` query returns bucket means and a short spike vanishes. A 30-second spike to 149m over a 10m steady state, in a 25-hour bucket, reads as 10m. Every peak query sets the rollup function explicitly and is cross-checked against a fine-grained read.
+- The mirror of that: a cross-series `sum:` over a window much longer than pod lifetime totals pods that never coexisted. Since the method takes the maximum across windows, the most inflated window would otherwise win by construction.
 - `memory.usage` counts page cache, which the kernel reclaims and never accounts against the limit — the kubelet kills on working set. On an I/O-heavy container the gap is several-fold. All memory figures use `working_set`.
 - Pods replaced faster than the measurement window never showed their ceiling, for any workload whose memory grows over a pod's life.
 - A container running N worker processes, each with its own memory ceiling, has a real ceiling far above anything observed.
+
+**Two things are reported rather than skipped.** A workload whose replica count will not resolve, and an unresolved grouping bucket, are both findings — not omissions. `N/A` means the workload tag was unresolved, not that there is no workload: StatefulSet pods carry no deployment tag, so discarding that bucket throws away the data tier, which is usually where the largest reservations sit. Replica counts come only from `replicas_desired`, never from matching pods by name, because a workload whose name prefixes its siblings absorbs their pods and one that matches nothing disappears silently.
 
 **Verification is required but unprescribed.** How a change is previewed and applied is project-specific: `terraform plan`, `helm diff`, `kubectl diff`, or a CI system that owns the plan. The skill runs the commands named in the settings file and enforces two gates — read the rendered change and confirm it contains every intended effect at *attribute* granularity, then confirm the live object rather than the success of the apply. With no apply command configured it hands off and says so rather than improvising one.
 
 Reference files:
 
 - `reference/configuration.md` — settings schema
-- `reference/method.md` — percentile proxy, profile classification, formulas, the four sample-is-not-the-ceiling conditions, ladders, savings rule
+- `reference/method.md` — percentile proxy, profile classification, formulas, the five sample-is-not-the-ceiling conditions, ladders, savings rule
 - `reference/metric-queries.md` — Datadog queries, the rollup trap, metric names, unit conversions, parallel plan

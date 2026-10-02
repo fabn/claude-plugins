@@ -47,6 +47,35 @@ Requests are the reservation and the only savings lever. They track typical
 usage: a request above typical usage is capacity nobody uses, and a request
 below it means the scheduler places the pod where it does not fit.
 
+### Precondition: resolve replicas before computing anything
+
+Read `kubernetes_state.deployment.replicas_desired` for every workload **first**.
+It gates both formulas below, and it is the only admissible source for a replica
+count. Never derive one by matching pod names to a workload: a workload whose
+name is a prefix of its siblings (`x` against `x-worker`, `x-cache`) absorbs
+their pods and inflates its saving, and a workload that matches nothing resolves
+to zero and vanishes from the report — which is worse, because an inflated
+number invites scrutiny and a missing row does not.
+
+| Desired replicas | Meaning | Action |
+|---|---|---|
+| ≥ 1 | Steady workload | Compute normally. |
+| averages well below 1 | Scales to zero | **Exclude from savings. Reject its average as a steady-state input.** |
+| resolves to 0 or not at all | Unresolved, not absent | **Report as a finding.** Never drop the workload. |
+
+A zero-replica resolution is a reported finding, never an omission. State the
+workload, that its replica count could not be resolved, and that no
+recommendation was computed for it.
+
+**Scale-to-zero inverts the CPU formula.** An autoscaled-to-zero worker's
+average is computed only over the windows in which it was awake, so it describes
+the busiest moment of something that holds nothing at rest. Feeding that to
+`avg × 3` sizes a permanent reservation for a transient: a worker measuring 180m
+per pod against desired replicas averaging 0.04 would be told to request 1000m,
+provisioning a large node on every wake. For these workloads the awake-window
+average is not a steady state and the formula does not apply — say so in the
+report instead of producing a number.
+
 **CPU requests**
 
 ```
@@ -59,13 +88,19 @@ request is also the pod's guaranteed share under node contention. Taking the
 maximum across windows rather than the longest window keeps a workload that has
 recently grown from being sized against its quieter past.
 
-**Then check the result against the startup transient.** If the fine-grained
-peak (not the coarse one) shows a boot spike well above `cpu_request`, raise the
-request to cover it. Contention bites hardest exactly at boot, and a slow boot
-fails readiness probes, which restarts the pod, which boots again. A workload
-whose steady state is 11m but which needs 149m for thirty seconds to start is
-not a 33m workload. This is the most common cause of a request that must go
-**up**, and such a finding is the method working.
+**Then check the result against the startup transient — for workloads that stay
+up.** If the fine-grained peak (not the coarse one) shows a boot spike well
+above `cpu_request`, raise the request to cover it. Contention bites hardest
+exactly at boot, and a slow boot fails readiness probes, which restarts the pod,
+which boots again. A workload whose steady state is 11m but which needs 149m for
+thirty seconds to start is not a 33m workload. For a long-running workload this
+is the most common cause of a request that must go **up**, and such a finding is
+the method working.
+
+It does not generalise to a workload that scales to zero, where every sample is
+a startup transient and raising the request reserves a node for something idle
+most of the time. Apply this check only after the replica precondition has
+confirmed the workload stays up.
 
 **Memory requests**
 
@@ -123,9 +158,9 @@ wanted more than the highest number in the data.
 
 ## When the sample is not the ceiling
 
-Four conditions make the observed peak something other than a ceiling. Each one
-can move a recommendation by an order of magnitude, and each overrides the
-multiplier above. Establish all four before sizing a limit.
+Five conditions make the observed figure something other than what it looks
+like. Each one can move a recommendation by an order of magnitude, and each
+overrides the multiplier above. Establish all five before sizing a limit.
 
 **1. The rollup averaged the spike away.** The metrics backend's automatic
 rollup over a long window aggregates with `avg`. A query-level `max:` picks the
@@ -173,18 +208,50 @@ Every memory figure here is working set. Sizing a request from `usage` inflates
 the reservation and the savings estimate alike; sizing a limit from it is
 conservative in direction but wrong in magnitude.
 
+**5. The window outlived the pods, and the cross-series sum stopped meaning
+anything.** Condition 1 is about aggregating *within* a bucket; this is its
+mirror, aggregating *across* series. A `sum:` over a window much longer than
+typical pod lifetime adds up series that came and went, so the total counts pods
+that never coexisted. The symptoms are self-evident once looked for: a
+per-namespace 30-day sum reading an order of magnitude above that namespace's
+own 7-day sum, or a namespace two days old totalling more than a long-lived one.
+
+This condition is dangerous precisely because the method says to take the
+**maximum** of the per-window averages — so the most inflated window wins
+silently and by construction. Therefore:
+
+- Treat any window much longer than typical pod lifetime as unsafe for a cross-series sum.
+- Cross-check every aggregate against a live read before using it. The live read is ground truth for "what is running now"; an aggregate that cannot be reconciled with it is discarded, not averaged in.
+- When a longer window disagrees implausibly with a shorter one, that is the finding. Do not resolve it by taking the maximum.
+
 ## Rounding ladders
 
 Round up to the next rung. Ladders exist so recommendations land on values
 humans recognise, which matters more than the last few MiB.
 
-**CPU**: `10m, 25m, 50m, 100m, 200m, 500m, 1000m`
+**CPU**: `10m, 15m, 20m, 25m, 30m, 50m, 75m, 100m, 200m, 500m, 1000m`
 
 **Memory**: `128Mi, 256Mi, 384Mi, 512Mi, 768Mi, 1024Mi, 1536Mi, 2048Mi, 3072Mi, 4096Mi`
 
 Above the top rung, continue by doubling (`2000m`, `4000m`; `8192Mi`,
 `16384Mi`) and say that the ladder was extended. Never clamp a recommendation to
 the top rung — a workload that needs 6 GiB needs 6 GiB.
+
+### The ladder must not manufacture findings
+
+**A recommendation within one rung of the current value is a no-op. Report the
+workload as adequately sized and leave it out of the recommendations.**
+
+Without this rule, rounding invents under-provisioning. On a small cluster most
+workloads sit in the single-digit millicore range, where `× 3` lands in the band
+whose rungs once stepped by 2–2.5×: a component already at 2.4× its usage rounds
+to ~4.8× and gets reported as under-requested. That is the ladder talking, not
+the workload — and it argues for inflating something already correctly sized.
+
+The low-end rungs above (`15m, 20m, 30m, 75m`) exist to shrink the amplification
+so that "one rung" is a small step rather than a doubling. The two fixes work
+together: finer rungs keep the dead band narrow enough that it suppresses noise
+without swallowing a real finding.
 
 ## Savings
 
@@ -193,13 +260,21 @@ savings = Σ over workloads (current_request − recommended_request) × replica
 ```
 
 Requests only, CPU and memory separately. A limit change never enters this
-figure — not a reduction, not a raise. State the replica count used; a per-pod
-figure understates by a factor of the replica count, and a cluster-wide figure
-without it cannot be checked.
+figure — not a reduction, not a raise. `replicas` comes from
+`replicas_desired` and nothing else, per the precondition above; state the value
+used, since a per-pod figure understates by a factor of the replica count and a
+cluster-wide figure without it cannot be checked.
 
-Request savings are not yet money. They become money when they let the cluster
-run on fewer nodes, which is a question about allocatable capacity per node pool
-and not about the sum. Report the sum and the node-level consequence separately.
+Excluded from the sum, and each said out loud instead: workloads that scale to
+zero, workloads whose replica count would not resolve, and workloads inside an
+unresolved grouping bucket that has not yet been split.
+
+**Request savings are not money, and must never be reported where they can be
+quoted alone.** They become money only when they let the cluster run on fewer
+nodes, which is a question about allocatable capacity per node pool and not
+about the sum. State the millicore total and its node consequence in the same
+breath — one table, or one sentence — and if the reduction frees no node, say
+that it frees no node.
 
 Report a negative total honestly. A run that finds workloads under-requested and
 raises their reservations has done its job; presenting that as a saving, or
