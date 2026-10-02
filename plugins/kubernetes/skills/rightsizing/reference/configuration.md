@@ -28,6 +28,7 @@ environments:
 
 # Which declared input ACTUALLY separates the environments, where it is
 # observable on a live object, and its value in each. Verified in Step 4.
+# Omit the whole block for a single-environment project.
 environment_discriminator:
   input: cluster_role
   observable_as: "metadata.labels['app.kubernetes.io/instance']"
@@ -107,10 +108,10 @@ request at the typical peak rather than the average.
 |---|---|---|
 | `clusters` | Yes | Tag values, not display names. Proposed by the discovery query on a first run, before the file is written. |
 | `environments` | Yes | Environment label → `namespaces` list. One environment may span several namespaces. |
-| `environment_discriminator` | Only with 2+ environments | Omit it entirely when `environments` has a single entry — there is nothing to discriminate, and a placeholder that cannot be verified is worse than an absent key. |
-| `environment_discriminator.input` | Yes | The declared input that genuinely separates environments. |
-| `environment_discriminator.observable_as` | Yes | Where that input lands on a live object — a label, annotation, or container env var. Without it the discriminator cannot be verified and the run stops. |
-| `environment_discriminator.values` | Yes | Expected value per environment label. A mismatch against live objects stops the run. |
+| `environment_discriminator` | Only with 2+ environments | Omit it entirely when `environments` has a single entry — there is nothing to discriminate, and a placeholder that cannot be verified is worse than an absent key. Present or absent as a whole: the three sub-keys below are required together. |
+| `environment_discriminator.input` | With the parent | The declared input that genuinely separates environments. |
+| `environment_discriminator.observable_as` | With the parent | Where that input lands on a live object — a label, annotation, or container env var. Without it the discriminator cannot be verified and the run stops. |
+| `environment_discriminator.values` | With the parent | Expected value per environment label. A mismatch against live objects stops the run. |
 | `resource_declarations` | Yes | Globs plus `syntax` (`terraform`, `helm-values`, `manifest`), which selects the edit strategy and the expected preview shape. |
 | `workloads` | Yes | Workload tag value → `declared_in` and `block`, or `external: true`. A workload discovered but absent from this map is asked about, never inferred. |
 | `workloads.<name>.external` | No | Declared in another repository. Analysed and reported, never edited, and not asked about again. |
