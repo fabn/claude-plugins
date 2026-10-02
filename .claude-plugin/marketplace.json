@@ -20,7 +20,7 @@
       "name": "kubernetes",
       "source": "./plugins/kubernetes",
       "description": "Kubernetes workload rightsizing: derive CPU and memory requests from observed usage metrics, size limits for safety rather than savings, reconcile against the values declared in Terraform or Helm, and gate every change behind a rendered-plan check and a live-object check.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "keywords": ["kubernetes", "k8s", "rightsizing", "resources", "requests", "limits", "cpu", "memory", "oom", "capacity", "cost", "over-provisioning", "pods", "workloads", "deployments", "datadog", "metrics", "terraform", "helm"]
     },
     {

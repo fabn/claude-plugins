@@ -108,9 +108,12 @@ metrics tag value to a file and a block. Record per environment:
 - whether the value is conditional, and on which input it branches
 - the file and line, so the report can cite them and Step 10 can edit them
 
-A knob absent from the declaration is not a knob set to zero. An absent memory
-limit means the container is unbounded; an absent request means the scheduler
-reserves nothing. Both are findings.
+A knob absent from the declaration is not a knob set to zero, and an absent
+request does not mean an absent reservation. Three distinct findings:
+
+- **No limit** — the container is unbounded.
+- **No request and no limit** — the scheduler reserves nothing.
+- **No request but a limit is set** — Kubernetes defaults the request *to the limit*, so the container silently reserves the whole limit. This is the costly case and the easiest to misread: the declaration looks like it reserves nothing while the cluster reserves the maximum. Always read the request the cluster reports, not the one the declaration omits.
 
 Compare the declared values against what the cluster reports as requested and
 limited. A disagreement means the declaration is not what is deployed — drift, a
@@ -151,6 +154,17 @@ any spike shorter than a bucket. Every peak query must set its rollup function
 explicitly — the default averages within buckets and will erase exactly the
 spikes being looked for.
 
+From the fine read, also record the **observed boot duration** — how long the
+startup transient lasts, not how high it reaches. Height and duration answer
+different questions in Step 7, and only duration decides whether a probe fires.
+
+Then read each container's **probes and CPU limit** from the live pod spec:
+`livenessProbe`, `readinessProbe`, `startupProbe`, and for each the
+`initialDelaySeconds`, `periodSeconds`, `failureThreshold` and `timeoutSeconds`.
+These are inputs to the CPU request decision, in the same way OOM history is an
+input to the memory limit — not context to mention afterwards. Also check restart
+reasons for pods killed by a probe rather than by an OOM.
+
 Tolerate sparse data. A workload created three days ago has no 30-day average;
 record what exists, mark the rest unavailable, and never substitute a shorter
 window's value for a longer one without labelling it.
@@ -182,6 +196,18 @@ answer:
 - A workload whose desired replicas average well below 1 scales to zero. Its average describes only its awake windows, so it is not a steady-state input and the CPU formula does not apply. Exclude it from savings and say why.
 - A workload whose replica count will not resolve is a reported finding, never an omission.
 - A recommendation within one rung of the current value is a no-op. Report the workload as adequately sized and leave it out of the recommendations — otherwise rounding manufactures under-provisioning.
+
+**Where a boot spike argues for a larger CPU request, walk the ladder in
+`reference/method.md` ("Is the request really the constraint?") before accepting
+that argument.** Raising a request is the most expensive of the three remedies and
+the only one that reserves capacity, so it is the last resort, not the first
+move:
+
+0. **A CPU limit caps the boot at all times, idle node or not.** Removing it — which this method already recommends — is free and often enough. Re-measure before blaming the request.
+1. **No probe that can kill the pod** → a slow boot costs latency, not availability. Take the reduction.
+2. **A probe that can** → compare its budget against the observed boot *duration*, not the spike's height. The tightness threshold is provisional; say so in the report.
+3. **Budget too tight** → the remedy is a `startupProbe`, not the request. Probes are not among the configured `knobs`, so **report it and hold the reduction as conditional** — "N millicores available once the probe covers the boot" — rather than declining it silently. A cut declined in silence is indistinguishable from one that does not exist.
+4. **The probe fails outside the boot window**, or individual attempts exceed `timeoutSeconds` rather than the budget exhausting → the request genuinely binds. Raise it, and report that the direction of error was **up**.
 
 ### Step 8: Node Headroom
 
@@ -215,9 +241,10 @@ Present, in this order:
 5. **Recommendations** — current vs recommended per knob, with rationale and the file and line of the current value.
 6. **Limits left untouched** — every limit deliberately not lowered, and its current margin.
 7. **Not sized, and why** — workloads that scale to zero, workloads whose replica count would not resolve, unresolved grouping buckets, and workloads marked `external`. A workload the method could not size is a finding; silence here is how the largest one in a run goes missing.
-8. **OOM events, restarts, evictions** — counts and affected workloads, with the window for each.
-9. **Risk flags** — current limit close to true peak; no limit at all; no request at all; request far below true peak.
-10. **Savings and node consequence — together, in one table.** Request reductions only, per workload and total, multiplied by the replica count from `replicas_desired`, with that count stated — and in the same table the Step 8 before-and-after showing whether the reduction frees a whole node. Never present the millicore total where it can be quoted on its own: only the node figure is money, and if nothing is freed, say nothing is freed. Report a negative total honestly: finding a workload under-requested and raising it is the method working, not a failure.
+8. **Blocked on a probe change** — every CPU reduction held back because the workload cannot boot inside its probe budget: the workload, the millicores available, the observed boot duration, the current budget, and the budget it would need. These are reclaimable, not refused, and they have been the largest single category in practice. Note that a provisional tightness threshold was used.
+9. **OOM events, restarts, evictions** — counts and affected workloads, with the window for each. Separate probe kills from OOM kills; they lead to different remedies.
+10. **Risk flags** — current limit close to true peak; no limit at all; no request at all; a request silently defaulted to the limit; request far below true peak; a CPU limit capping a boot.
+11. **Savings and node consequence — together, in one table.** Request reductions only, per workload and total, multiplied by the replica count from `replicas_desired`, with that count stated — and in the same table the Step 8 before-and-after showing whether the reduction frees a whole node. Never present the millicore total where it can be quoted on its own: only the node figure is money, and if nothing is freed, say nothing is freed. Keep the conditional reductions from item 8 out of this total and subtotalled separately, so what is available today is not confused with what needs a probe change first. Report a negative total honestly: finding a workload under-requested and raising it is the method working, not a failure.
 
 ### Step 10: Apply, Behind Two Gates
 
@@ -256,6 +283,11 @@ Step 4, not with an environment input that was never confirmed.
 | Desired replicas average well below 1 | Scales to zero. Exclude from savings, refuse the awake-window average as a steady state, skip the boot-transient check. |
 | `N/A` or any unresolved grouping bucket | Split it by pod and owner kind, then by live owner references. Report whatever remains; do not change anything inside it and do not discard it. |
 | Recommendation within one rung of the current value | Report as adequately sized, exclude from recommendations. Do not report it as under- or over-provisioned. |
+| Boot spike argues for a larger CPU request | Walk the ladder in `method.md` first. A CPU limit capping the boot, or the absence of any killing probe, resolves it without reserving capacity. |
+| Probe budget too tight for the observed boot | Recommend a `startupProbe`, not a larger request. Hold the reduction as conditional and report its value; never decline it silently. |
+| Probe fails outside the boot window, or attempts exceed `timeoutSeconds` | The request binds. Raise it and report the direction of error as up. |
+| Probes unreadable (no live access to the pod spec) | Do not take a CPU reduction that depends on probe configuration. Report it as unverifiable and say what would settle it. |
+| Request absent but a limit is set | The request defaults to the limit. Read the request the cluster reports; do not report the container as reserving nothing. |
 | A longer window's aggregate implausibly exceeds a shorter one's | Treat as a cross-series sum that outlived its pods. Report the disagreement; do not take the maximum. |
 | Single environment configured | `environment_discriminator` may be omitted; skip Step 4 rather than verifying a placeholder. |
 | Metrics backend unreachable | Stop. The method has no fallback — there is nothing to size against. |

@@ -90,17 +90,91 @@ recently grown from being sized against its quieter past.
 
 **Then check the result against the startup transient — for workloads that stay
 up.** If the fine-grained peak (not the coarse one) shows a boot spike well
-above `cpu_request`, raise the request to cover it. Contention bites hardest
-exactly at boot, and a slow boot fails readiness probes, which restarts the pod,
-which boots again. A workload whose steady state is 11m but which needs 149m for
-thirty seconds to start is not a 33m workload. For a long-running workload this
-is the most common cause of a request that must go **up**, and such a finding is
-the method working.
+above `cpu_request`, the workload may be unable to boot inside its probe budget:
+a starved boot overruns the probe, the kubelet kills the pod, and it boots again.
+A workload whose steady state is 11m but which needs 149m for thirty seconds to
+start is not straightforwardly a 33m workload.
 
-It does not generalise to a workload that scales to zero, where every sample is
-a startup transient and raising the request reserves a node for something idle
-most of the time. Apply this check only after the replica precondition has
+**But do not raise the request yet.** Raising it is the most expensive of the
+three remedies and the only one that reserves capacity — paid every hour of the
+workload's life to survive thirty seconds of it, and it is the figure that
+provisions nodes. Work down the ladder in "Is the request really the
+constraint?" below and raise the request only when it reaches the bottom.
+
+This whole check does not generalise to a workload that scales to zero, where
+every sample is a startup transient and raising the request reserves a node for
+something idle most of the time. Apply it only after the replica precondition has
 confirmed the workload stays up.
+
+### Is the request really the constraint?
+
+Three things can stop a container from booting in time, and they cost wildly
+different amounts to fix. Establish them in this order and stop at the first that
+applies; only the last one justifies a larger reservation.
+
+**0. Is a CPU limit capping the boot?** A CPU limit is a hard ceiling at all
+times, enforced whether or not the node is busy. A CPU request is a guaranteed
+minimum, so it binds only under contention. A container with `request: 50m` and
+`limit: 100m` therefore cannot exceed 100m even on a completely idle node, and
+its slow boot is caused by the limit, not the reservation.
+
+Remove the CPU limit — which this method already recommends for unrelated
+reasons — and re-measure before concluding anything about the request. The free
+fix is often already in the recommendation set, sitting above both remedies
+below.
+
+**1. Can any probe actually kill the pod?** Read the container's probes. With no
+`livenessProbe` and no `startupProbe`, nothing restarts the container for booting
+slowly: a starved boot costs latency, not availability. Take the request
+reduction. Note separately if slow starts are user-visible anyway — a
+scale-to-zero cold path, a queue redelivery window, a deploy gate — but that is a
+latency judgement, not a reason to reserve capacity permanently.
+
+**2. Is the probe budget tight against the observed boot duration?** Compute the
+budget of whichever probe governs startup:
+
+```
+liveness budget  = initialDelaySeconds + periodSeconds × failureThreshold
+startup budget   = periodSeconds × failureThreshold
+```
+
+and compare it against the **observed boot duration** — how long the transient
+lasts, read from the fine-grained query. Duration decides whether the probe
+fires; the spike's CPU height is a separate question and does not belong in this
+comparison.
+
+> **Provisional threshold.** Treat the budget as tight when it is less than
+> **2× the observed boot duration**. This multiplier is a working assumption, not
+> a measured result: it is deliberately conservative because a boot that is
+> already slow degrades further under contention. Replace it when measured probe
+> budgets against measured boot durations are available, and say in the report
+> that a provisional threshold was used.
+
+**3. Budget too tight? The remedy is the probe, not the request.** A
+`startupProbe` with a generous `failureThreshold` suppresses liveness and
+readiness until the application is actually up — no other probe runs until it
+succeeds — so it removes the kill without reserving anything, and it is reverted
+in one line.
+
+The skill does not edit probes: they are not among the configured `knobs`, and
+widening the edit surface past the declared contract is not this skill's job.
+So **report the probe as the remedy and hold the request reduction as
+conditional** rather than declining it. The report says: this workload can give
+back N millicores once its startup probe covers its boot, and here is the budget
+it would need. A cut declined in silence is indistinguishable from a cut that
+does not exist, and across two repositories this case alone accounted for more
+reclaimable request than everything else the method found.
+
+**4. Does the probe fail outside the boot window?** This is the case where the
+request genuinely binds, and it has two signatures:
+
+- The budget is already generous and the pod still dies. A `startupProbe` only suppresses other probes *until it succeeds*; once it passes, liveness resumes. A container starved at steady state as well as at boot has its kill deferred by a startup probe, not prevented.
+- Individual probe attempts exceed `timeoutSeconds` rather than the budget exhausting. These are different failures. A healthcheck path serving a static file — no interpreter, no database — that cannot answer within the timeout is proof the container is not being scheduled CPU at all, at its *current* request.
+
+In either case raise the request, and report that the direction of error was
+**up**: the workload was under-reserved, not over-reserved. Finding this is the
+method working, and it is why this ladder ends in a raise rather than in a refusal
+to ever raise.
 
 **Memory requests**
 
