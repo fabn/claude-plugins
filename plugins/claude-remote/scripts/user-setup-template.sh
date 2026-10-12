@@ -83,7 +83,10 @@ mise settings ruby.github_attestations=false
 # gh is NOT pre-installed on Claude web VMs; jq IS pre-installed. apt-get
 # is idempotent so we just ask for both — already-installed is a no-op.
 echo "[3/5] Installing common CLI tools (gh, jq)..."
-apt-get update -qq
+# --allow-releaseinfo-change: a third-party apt source on the base image can
+# change its Release metadata (Origin/Label/Suite) between image builds, and
+# plain `apt-get update` then refuses the repository and fails the script.
+apt-get update -qq --allow-releaseinfo-change
 apt-get install -y -qq gh jq
 
 # ── Claude Code plugins declared by the repository ───────────────
