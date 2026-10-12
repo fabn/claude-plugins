@@ -11,7 +11,7 @@ set -euo pipefail
 #   - (optionally) ~/.claude/scripts/setup.sh on local machines
 #
 # The script handles minimal cross-project bootstrapping (mise + permissive
-# settings), then delegates to the repository's own .claude/scripts/setup.sh
+# settings + the Claude Code plugins the repo declares), then delegates to the repository's own .claude/scripts/setup.sh
 # for repo-specific setup (bundle install, npm install, service startup, etc.).
 #
 # Logs everything to /tmp/claude-user-setup.log; the repo-level setup script
@@ -27,7 +27,7 @@ echo "  host: $(uname -srm) | user: $(whoami) | home: $HOME"
 [ -f /etc/os-release ] && . /etc/os-release && echo "  os: ${PRETTY_NAME:-unknown}"
 
 # ── Permissive settings for sandboxed environment ────────────────
-echo "[1/4] Installing permissive settings..."
+echo "[1/5] Installing permissive settings..."
 
 # The project .claude/settings.json has restrictive permissions for local
 # interactive use. In the sandboxed web environment there's no risk,
@@ -53,7 +53,7 @@ else
 fi
 
 # ── mise ──────────────────────────────────────────────────────────
-echo "[2/4] Installing mise..."
+echo "[2/5] Installing mise..."
 if ! command -v mise >/dev/null 2>&1; then
   # Retry on transient failures (mise.run has returned 503 during bootstrap).
   # --retry-all-errors covers HTTP 5xx; default curl --retry only covers
@@ -82,12 +82,43 @@ mise settings ruby.github_attestations=false
 # ── Common CLI tools (gh, jq) ────────────────────────────────────
 # gh is NOT pre-installed on Claude web VMs; jq IS pre-installed. apt-get
 # is idempotent so we just ask for both — already-installed is a no-op.
-echo "[3/4] Installing common CLI tools (gh, jq)..."
-apt-get update -qq
+echo "[3/5] Installing common CLI tools (gh, jq)..."
+# --allow-releaseinfo-change: a third-party apt source on the base image can
+# change its Release metadata (Origin/Label/Suite) between image builds, and
+# plain `apt-get update` then refuses the repository and fails the script.
+apt-get update -qq --allow-releaseinfo-change
 apt-get install -y -qq gh jq
 
+# ── Claude Code plugins declared by the repository ───────────────
+# Locally Claude Code asks to trust the marketplaces in the project's
+# .claude/settings.json (extraKnownMarketplaces) when the repo is opened. A
+# cloud session asks nobody, so the marketplaces are never registered and
+# every enabledPlugins entry is dropped at startup ("Skipping orphaned
+# enabledPlugins entry ...: marketplace not registered"). Registering the
+# marketplace alone is not enough either: a headless session does not fetch
+# enabled plugins, it reports them as a plugin-cache-miss and loads no skills.
+# So register and install here, reading the repo's own settings file so the
+# plugin list has a single source. Both commands are idempotent.
+echo "[4/5] Installing Claude Code plugins..."
+SETTINGS="${REPO_DIR:-}/.claude/settings.json"
+if [ -z "${REPO_DIR:-}" ] || [ ! -f "$SETTINGS" ]; then
+  echo "  No repo .claude/settings.json found, skipping"
+elif ! command -v claude >/dev/null 2>&1; then
+  echo "  WARNING: claude CLI not on PATH, plugins not installed"
+else
+  jq -r '.extraKnownMarketplaces // {} | .[].source
+         | if .source == "github" then .repo elif .source == "git" then .url else empty end' "$SETTINGS" |
+    while read -r marketplace; do
+      claude plugin marketplace add "$marketplace" || echo "  WARNING: could not add marketplace $marketplace"
+    done
+  jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$SETTINGS" |
+    while read -r plugin; do
+      claude plugin install "$plugin" || echo "  WARNING: could not install $plugin"
+    done
+fi
+
 # ── Delegate to repository setup ─────────────────────────────────
-echo "[4/4] Delegating to repository setup..."
+echo "[5/5] Delegating to repository setup..."
 
 if [ -x "$REPO_SETUP" ]; then
   echo "  Running $REPO_SETUP ..."

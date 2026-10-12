@@ -14,7 +14,7 @@ Configure and diagnose [Claude Code on the web](https://code.claude.com/docs/en/
 
 A working cloud session needs three cooperating pieces:
 
-1. **User-level setup script** pasted into the Claude Code web UI environment's "Setup script" field. It installs cross-project tooling (mise, `gh`, `jq`), writes permissive sandbox settings, logs a VM fingerprint for diagnostics, then discovers the per-repo script and delegates to it. The canonical version lives at `plugins/claude-remote/scripts/user-setup-template.sh` inside this plugin — **this file is the source of truth**, any future changes are made here first, then re-pasted into the web UI.
+1. **User-level setup script** pasted into the Claude Code web UI environment's "Setup script" field. It installs cross-project tooling (mise, `gh`, `jq`), writes permissive sandbox settings, registers the marketplaces and installs the plugins the repo's `.claude/settings.json` declares (a cloud session never does it on its own), logs a VM fingerprint for diagnostics, then discovers the per-repo script and delegates to it. The canonical version lives at `plugins/claude-remote/scripts/user-setup-template.sh` inside this plugin — **this file is the source of truth**, any future changes are made here first, then re-pasted into the web UI.
 2. **Per-repo `.claude/scripts/setup.sh`** — runs on new sessions, installs repo-specific deps (`bundle install`, `npm ci`, etc.) and starts required services.
 3. **Per-repo `.claude/scripts/session-start.sh`** — runs on every session (including resumes) via a `SessionStart` hook. Keeps services up and persists mise-managed `PATH` to `$CLAUDE_ENV_FILE` so every Bash tool call inherits the right environment.
 

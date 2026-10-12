@@ -65,10 +65,15 @@ tail -n 500 /tmp/claude-user-setup.log 2>&1 || echo "LOG_MISSING"
 Grep for the canonical marker lines:
 
 - `=== User setup started at`
-- `[1/4] Installing permissive settings`
-- `[2/4] Installing mise`
-- `[3/4] Installing common CLI tools`
-- `[4/4] Delegating to repository setup`
+- `[1/5] Installing permissive settings`
+- `[2/5] Installing mise`
+- `[3/5] Installing common CLI tools`
+- `[4/5] Installing Claude Code plugins`
+- `[5/5] Delegating to repository setup`
+
+A log with `[1/4]` … `[4/4]` markers comes from a web-UI script older than
+0.4.0: it does not install the repo's plugins. Tell the user to re-paste
+`${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh`.
 - `=== User setup complete at`
 - `=== Repo setup started at`
 - `=== Repo setup complete at`
