@@ -129,7 +129,17 @@ maintainer). `checks` is a summary of all checks for planning; whether a PR is
 green is decided on its required checks with `gh pr checks` (Step 8). `mergeable`
 `UNKNOWN` is computed lazily: ask again later, then test locally:
 `git merge-tree --write-tree origin/<default> FETCH_HEAD` after fetching the
-head.
+head. `--write-tree` needs git 2.38 or later: an older git reports a conflict
+on every PR, so check `git --version` first and treat the result as unknown
+when it is older.
+
+**Stale CI.** A run older than the last lockfile change on the default branch
+says nothing about the PR today, the normal state of a backlog. For the PRs
+taken this run that carry no commit of ours, ask Dependabot for a fresh head:
+`gh pr comment <n> --body "@dependabot rebase"` from a local session (the
+cloud proxy mangles it, Hard rules). There, rebase the branch ourselves only
+when the PR goes to the Fix lane anyway: a branch we pushed to is one
+Dependabot stops maintaining.
 
 ### Step 3 — Urgency
 
@@ -282,8 +292,9 @@ minor line). Never wait for Dependabot to drop the package.
 **Batch PR** (only for what no Dependabot PR carries): branch
 `deps/batch-<date>` from `origin/<default>`, the adapter's conservative update
 for the named packages only, check that the lock diff moves nothing else.
-Commit `Batch dependency update <date>` with every package `from → to` and its
-advisory in the body, push, open the PR.
+At most `max_deps_per_pr` packages per batch PR: more become several batch
+PRs, grouped by domain. Commit `Batch dependency update <date>` with every
+package `from → to` and its advisory in the body, push, open the PR.
 
 ### Step 8 — Review, then auto-merge or mark ready
 

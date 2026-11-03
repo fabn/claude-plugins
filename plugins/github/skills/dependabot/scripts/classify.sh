@@ -27,7 +27,8 @@
 #
 # Locked versions come from the dependency-graph SBOM, which lags a few minutes
 # behind a push to the default branch. A package can be locked at several
-# versions (npm): only the instances on the target's major count for SUPERSEDED.
+# versions (npm): only the instances from the PR's starting major up count for
+# SUPERSEDED, so an older line kept by another parent does not hold it open.
 #
 # Requires: gh (authenticated), jq, git
 
@@ -100,9 +101,9 @@ jq -c -s --slurpfile sbom "$tmp/sbom.json" --slurpfile actions "$tmp/actions.jso
       elif (.locked | length) == 0 then "GONE"
       elif (.from | test("[~^<>=*]")) then "PENDING"
       elif any(.locked[]; . == ($d.from | ltrimstr("v")) or . == "sha") then "PENDING"
-      else (.to | ver) as $to
-        | [ .locked[] | ver | select(length > 0 and .[0] == $to[0]) ] as $same
-        | if ($same | length) > 0 and all($same[]; . >= $to) then "SUPERSEDED" else "PENDING" end
+      else (.to | ver) as $to | (.from | ver) as $from
+        | [ .locked[] | ver | select(length > 0 and .[0] >= ($from[0] // 0)) ] as $line
+        | if ($line | length) > 0 and all($line[]; . >= $to) then "SUPERSEDED" else "PENDING" end
       end;
 
     [ .[] | . as $pr
