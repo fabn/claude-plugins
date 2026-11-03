@@ -84,6 +84,9 @@ step (Steps 1 and 4 list their actions instead of taking them).
   proxy rewrites them so they never reach Dependabot: there, do the work
   directly (rebase here, close via the API, `ignore` entries in config).
 - Never skip, disable or loosen a test to get green.
+- A command that changes directory stops when the `cd` fails (`cd <dir> &&
+  …`, or `git -C`): after a failed `git worktree add`, a bare `cd` runs the
+  update in the main checkout.
 - Re-list the PRs before acting on a plan written earlier in the run: right
   after a `dependabot.yml` change merges, Dependabot runs at once, closes
   single PRs a group now covers and opens new ones.
@@ -117,6 +120,7 @@ Before anything new, the PRs carrying `ready_label` or one of our reviews
 | Conflicting | Untouched by us: wait for Dependabot. Ours: rebase (Hard rules) |
 | Required check turned red | Remove the label, take it to the Fix lane |
 | Closed by Dependabot and regenerated | Re-apply our commits on the new PR, carry review and label over |
+| Waiting in the merge plan on a PR now merged | Ours: regenerate the lock from default, push, comment, label. Dependabot's: `@dependabot rebase` |
 
 ### Step 2 — Collect
 
@@ -131,7 +135,7 @@ green is decided on its required checks with `gh pr checks` (Step 8). `mergeable
 `git merge-tree --write-tree origin/<default> FETCH_HEAD` after fetching the
 head. `--write-tree` needs git 2.38 or later: an older git reports a conflict
 on every PR, so check `git --version` first and treat the result as unknown
-when it is older.
+when it is older. Exit 1 is a conflict; any other non-zero exit is an error.
 
 **Stale CI.** A run older than the last lockfile change on the default branch
 says nothing about the PR today, the normal state of a backlog. For the PRs
@@ -158,9 +162,12 @@ line of the report, never treat it as "none". For every update record:
 
 1. **Severity and fix**: highest severity; the lowest patched version on the
    package's current major (an advisory can be patched on several lines).
-2. **Exposure**: `scope` runtime or development; whether our code calls the
-   vulnerable API (grep the source tree for it). Say "reachable", "not
-   reachable" or "unknown" — never guess.
+2. **Exposure**: `scope` runtime or development. Read the advisory's own text
+   for its preconditions (a configuration, an optional package present in the
+   lock, a platform, a feature turned on) and check each in the repository,
+   then whether our code calls the vulnerable API. A call with a precondition
+   unmet is not reachable. Say "reachable", "not reachable" or "unknown", with
+   the precondition that decided it — never guess.
 3. **Pins**: does our manifest constraint admit the fix? A pin never outranks
    an advisory; a pin that blocks a fix is a top item.
 
@@ -206,6 +213,14 @@ admits the target (adapter: parents). A parent that does not makes it
 parent-blocked: find the first parent release that admits it, follow the
 chain, and if it resolves it goes to Fix with its parents; if no release
 admits it, Major lane *Blocked* or Decision.
+
+**Families.** Packages released together and pinned to the same exact version
+(a framework's `@scope/*` packages, a monorepo's crates) cannot move one at a
+time: each single PR is red by construction. Recognise them by a shared
+scope or prefix and the same exact `from` in the manifest. Their open PRs are
+one Fix item: on the PR carrying most of them, bring the other members to the
+same version (adapter: regenerate), close the others as superseded by it, and
+propose a `groups` entry for the family in the Step 9 config PR.
 
 **Backlog cap.** Deep work (audit + fix + review) is limited to
 `max_deep_work_per_run` PRs, taken in queue order. Every other PR still gets
@@ -311,8 +326,23 @@ bot comment: status bots edit their comment several times while checks run.
 3. **Ready** means: audit complete (a row per package, every ACTION
    fixed), no new warning, required checks green on the head, `mergeable`
    clean, review posted. Then add `ready_label` (create it on first use) and
-   request the maintainer (`update_pull_request reviewers`). The maintainer's
-   queue is `label:<ready_label> review-requested:<maintainer>`.
+   request the maintainer (`update_pull_request reviewers`), unless the
+   maintainer authored the PR (a batch or config PR opened with their
+   account): GitHub refuses an author as reviewer, the label is enough. The
+   maintainer's queue is `is:open label:<ready_label>`.
+4. **Merge plan.** PRs that are green one by one can break together without a
+   text conflict: two changes to the same lockfile whose union is not a valid
+   resolution (one adds an entry the other's version no longer satisfies).
+   When two or more PRs delivered this run touch the same lockfile, merge them
+   one after another into a scratch worktree from `origin/<default>` and run
+   the adapter's lock check after each; on a failure, find the PR it clashes
+   with. The report gives the order: Dependabot's PRs first, ours touching the
+   lock last. A PR that breaks after another gets "regenerate after #n" in its
+   review and no `ready_label` until then (Step 1 of a later run).
+   Do not stack them with `gh stack`: stacking rebases Dependabot branches onto
+   each other (Dependabot stops maintaining them), its cascading rebase is
+   textual and regenerates no lockfile, and merging a mid-stack PR merges
+   everything below it.
 
 ### Step 9 — Postpone: the Major lane and `ignore` entries
 
@@ -400,7 +430,7 @@ needed.
 | `classify.sh` says the directory is not a checkout of the repo | Run it from the right checkout; Actions deps are UNKNOWN until then |
 | `collect.sh` returns nothing but the PR list shows Dependabot PRs | Check `gh auth status` scopes and that the PRs' author is `dependabot` (not a fork bot) |
 | CI log expired (410) or the run predates the last lockfile change on default | CI unknown: re-run the checks before calling the PR green or red |
-| Red job with no test failure in its log | Infrastructure: report once, not the package's fault |
+| Red job with no test failure in its log | Compare with the same job on the default branch first: a failure main does not have, on a PR behind main, is drift (schema, generated files) and goes with a rebase. Only one main shares, or the runner's own, is infrastructure: report once |
 | Push rejected by `--force-with-lease` | Someone pushed meanwhile: fetch, look at what changed, redo; never plain `--force` |
 | Ecosystem missing from the adapters | Work the fields out from the repository; say which were improvised |
 

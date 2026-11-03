@@ -33,7 +33,7 @@ Every key is optional; a missing key selects its default.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `maintainer` | the authenticated `gh` user | Requested as reviewer on every ready PR |
+| `maintainer` | the authenticated `gh` user | Requested as reviewer on every ready PR they did not author |
 | `ready_label` | `ready-to-merge` | Label of PRs that only wait on the maintainer's click; created on first use |
 | `required_checks` | the branch protection's required checks, else every check on the head | Checks that must be completed and successful before a PR is ready or auto-merged |
 | `auto_merge.enabled` | `false` | Turns on the auto-merge gate ([auto-merge.md](auto-merge.md)) |

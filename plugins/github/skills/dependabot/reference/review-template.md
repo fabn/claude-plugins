@@ -81,8 +81,9 @@ The Majors table is always shown in full, every row in it needs the user.
 <count by reason>
 
 ### Ready for you — <n>
-`is:pr is:open label:<ready_label> review-requested:<maintainer>`
+`is:pr is:open label:<ready_label>`
 | PR | TLDR | Impact |   ("read the impact" rows only)
+Merge order (only when the merge plan found a clash): #a, #b, then #c once regenerated after #b.
 
 ### Fixed on the branch
 | PR | What broke | Change made | CI | Ready |

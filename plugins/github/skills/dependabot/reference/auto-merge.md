@@ -34,7 +34,10 @@ The gate is for updates that are boring by evidence, not by hope.
 3. **One at a time.** A merge makes every other PR's `mergeable` and checks
    stale: re-read them for the next candidate. Dependabot rebases the others
    on its own; a candidate that turned `CONFLICTING` waits for that rebase and
-   is not merged in this run. A candidate whose head moved is a new candidate:
+   is not merged in this run. Candidates go in the merge plan's order
+   (SKILL.md Step 8): one touching a lockfile a merge of this run changed is
+   merged only if the plan's lock check passed with that merge applied.
+   A candidate whose head moved is a new candidate:
    items 2, 3, 5, 6 and 7 are checked again on the new sha; item 4 carries over
    only if the lock diff is identical.
 4. A refused merge (head moved, protection, a check that appeared) is not an

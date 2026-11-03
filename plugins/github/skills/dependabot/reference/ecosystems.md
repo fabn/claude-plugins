@@ -14,6 +14,7 @@ Every adapter answers the same questions:
 | **Parents** | Who requires the package, and whether they admit the target |
 | **Hold back** | Keep one package of a group PR at the default branch's version |
 | **Changelog** | Step 6 audit |
+| **Lock check** | Merge plan (Step 8): the manifest and lockfile agree, nothing to resolve |
 | **Smoke checks** | Before pushing; `local_checks` in config overrides them |
 
 An ecosystem not listed here still goes through every step: work the fields
@@ -27,6 +28,7 @@ out from the repository, and say in the report which ones were improvised.
 - **Parents**: the lockfile lists them (indented under each spec); `gem dependency <parent> -v <v>` shows a release's requirements, `gem list <parent> --remote --all` the releases to try. Follow the chain: the first parent release that admits the target may need its own parents moved.
 - **Hold back**: temporary exact pins in the `Gemfile` (`gem 'x', '= <default version>'`, plus its plugins), `bundle lock`, restore the `Gemfile`, `bundle lock` again: the versions stay.
 - **Changelog**: `gem fetch <gem> -v <to>` and read `CHANGELOG*` from `<from>` up, else the GitHub releases of the gem's `source_code_uri`.
+- **Lock check**: `BUNDLE_FROZEN=true bundle install --quiet`.
 - **Smoke checks**: boot (`bundle exec ruby -e 'require "./config/environment"'` for Rails, `bundle exec rake -T` otherwise) and lint (`bundle exec rubocop`).
 - **Trap**: in a `git worktree`, a `bin/bundle` binstub on `PATH` may set `BUNDLE_GEMFILE` to the main checkout's `Gemfile`, so `bundle lock` rewrites the wrong lockfile. Prefix every call with `BUNDLE_GEMFILE=$PWD/Gemfile`.
 
@@ -40,6 +42,7 @@ Find the package manager from the lockfile on the default branch: `package-lock.
 - **Parents**: `npm explain <pkg>` / `yarn why <pkg>` / `pnpm why <pkg>`; `npm view <parent>@<v> dependencies peerDependencies` for what a release requires. Peer dependency ranges are the usual blocker for majors (a UI kit pinning `react`).
 - **Hold back**: in a group PR, set the package back to the default branch's range in `package.json` and regenerate; for a transitive one, a temporary override, removed before the review.
 - **Changelog**: `npm view <pkg> repository.url` → the repository's releases or `CHANGELOG.md`; monorepos keep one per package (`packages/<name>/CHANGELOG.md`).
+- **Lock check**: `npm ci --ignore-scripts` / `yarn install --immutable --mode=skip-build` (Berry) or `yarn install --frozen-lockfile` (classic) / `pnpm install --frozen-lockfile --ignore-scripts` / `bun install --frozen-lockfile`.
 - **Smoke checks**: the `package.json` scripts that exist among `build`, `lint`, `typecheck`/`tsc --noEmit`, `test` (unit only: end-to-end suites are CI's job).
 
 ## pip, uv, poetry (Python)
@@ -50,6 +53,7 @@ Find the package manager from the lockfile on the default branch: `package-lock.
 - **Parents**: `uv tree --invert --package <pkg>` / `poetry show --tree` / `pipdeptree -r -p <pkg>`.
 - **Hold back**: constrain the package to the default branch's version in `pyproject.toml`, relock, restore the constraint, relock.
 - **Changelog**: PyPI `project_urls` (`curl -s https://pypi.org/pypi/<pkg>/json | jq .info.project_urls`) → changelog or GitHub releases.
+- **Lock check**: `uv lock --check` / `poetry check --lock`.
 - **Smoke checks**: import the package's top module, the linter in use (`ruff check`, `flake8`), the type checker if configured.
 
 ## github_actions
@@ -77,6 +81,7 @@ Find the package manager from the lockfile on the default branch: `package-lock.
 - **Parents**: `go mod why -m <module>`, `go mod graph | grep <module>`.
 - **Hold back**: `go get <module>@<default version>`.
 - **Changelog**: the module repository's releases. A new major is a new import path (`/v2`): Dependabot does not open those, so a major PR here is unusual.
+- **Lock check**: `go mod tidy -diff` (Go 1.23+), else `go mod tidy` and an empty `git diff`.
 - **Smoke checks**: `go build ./... && go vet ./...`.
 
 ## terraform
@@ -84,6 +89,7 @@ Find the package manager from the lockfile on the default branch: `package-lock.
 - **Locked version**: `.terraform.lock.hcl` for providers, the `version` argument of `module` blocks for registry modules.
 - **Regenerate from default**: `terraform init -upgrade` with the new constraint, then `terraform providers lock` for every platform the lock file already lists.
 - **Changelog**: the provider's `CHANGELOG.md`; a module's releases. Provider majors remove arguments and change defaults that only a `plan` shows.
+- **Lock check**: `terraform init -lockfile=readonly -backend=false`.
 - **Smoke checks**: `terraform fmt -check`, `terraform validate`. A `plan` needs credentials and belongs to the repository's CI or its own skill.
 
 ## Other ecosystems
