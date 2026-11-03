@@ -272,6 +272,22 @@ Takes every open Dependabot PR of the current repository to closed, auto-merged,
 
 Claude never merges outside the gate in `reference/auto-merge.md`, and never closes a PR to postpone it: Dependabot would skip that version.
 
+#### Usage
+
+Run it from a checkout of the repository, in one of three modes chosen only by the arguments:
+
+| Command | When |
+|---|---|
+| `/github:dependabot --dry-run` | First time in a repository: plan and report, nothing written |
+| `/github:dependabot` | You are at the terminal: it presents the plan, does the work, asks decisions as it goes |
+| `/github:dependabot --unattended` | Nobody watches (a Routine, `claude -p` from cron): it acts without pausing and writes report and decisions to a `Dependabot triage` issue |
+
+- **Your queue** after a run is `is:pr is:open label:ready-to-merge`: every PR there is green, reviewed with a TLDR and only waits for your merge. The report gives a merge order when two PRs clash on the lockfile.
+- **Decisions** (a framework major, a package to drop, the config) are asked interactively, or posted in the tracking issue in unattended mode. Answer there with a comment such as `D1: A`; the next run acts on it, and an interactive run asks the ones still open.
+- **Large backlogs** drain over several runs: each run takes `max_deep_work_per_run` PRs (5) through audit and fixes, closes the dead ones and lists the rest under "Next run".
+- **Auto-merge** stays off until the repository opts in. At the end of the first run the skill offers to write the `dependabot` key of `.claude/github.json`; see `skills/dependabot/reference/config.md` for every key.
+- **On a schedule**: `claude -p "/github:dependabot --unattended"` from the checkout, or a Routine with the same prompt. In a cloud session `@dependabot` commands do not reach Dependabot, so the run rebases and closes through the API instead.
+
 ## Project Config
 
 Per-project defaults live in `.claude/github.json`:
