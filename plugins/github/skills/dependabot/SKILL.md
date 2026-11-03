@@ -52,10 +52,13 @@ is the same:
   maintainer's comments on the issue after the last report. An answer that
   does not match an option is followed if it is clear, asked again otherwise.
 - Nothing the user alone can decide is done: no *Not wanted* verdict, no
-  *Upgrade now* outside security majors, no Decision acted on, and no config
-  key written. *Blocked* `ignore` entries still go into the config PR: merging
+  *Upgrade now* other than security majors and size S majors (both still end
+  in the maintainer's review), no Decision acted on, and no config key
+  written. *Blocked* `ignore` entries still go into the config PR: merging
   it is the confirmation.
-- Checks after a push are waited on for at most 30 minutes; what is still
+- Wait in the foreground, never with a background shell: a `claude -p` or
+  Routine session can end with the turn and drop it. Checks after a push get
+  at most 30 minutes (`timeout 1800 gh pr checks <n> --watch`); what is still
   pending is left to Step 1 of the next run.
 
 ## Tools Used
@@ -131,7 +134,9 @@ is the same:
    session's scratchpad when it has one).
 5. The tracking issue (open, label `dependabot-triage`, created by Step 11):
    read the maintainer's comments after our last report. Each one answers a
-   decision listed there; act on it in this run, in any mode.
+   decision listed there; act on it in this run, in any mode. Interactive,
+   ask the decisions still unanswered with `AskUserQuestion` now, and record
+   the answers as a comment on the issue so the next run sees them.
 
 ### Step 1 — Keep last run's PRs ready
 
@@ -169,6 +174,11 @@ taken this run that carry no commit of ours, ask Dependabot for a fresh head:
 cloud proxy mangles it, Hard rules). There, rebase the branch ourselves only
 when the PR goes to the Fix lane anyway: a branch we pushed to is one
 Dependabot stops maintaining.
+
+Dependabot sometimes ignores the command. With no new head after 20 minutes,
+rebase it ourselves only when the PR moves a single lockfile entry (nothing to
+maintain after it merges), and say so in the push comment; any other PR stays
+under "Next run".
 
 ### Step 3 — Urgency
 
@@ -450,7 +460,8 @@ first use). Its body is replaced with the latest report; each run adds one
 comment with that run's decisions in the issue template, so the maintainer
 answers there and is notified by GitHub. A decision answered meanwhile
 disappears from the next one. Send a `PushNotification` when the tool exists,
-one line: how many decisions, the most urgent, the issue link.
+one line: how many decisions, the most urgent, the issue link. Its wording
+matches the report: an advisory found not reachable is not called urgent.
 
 ## Error Handling
 
