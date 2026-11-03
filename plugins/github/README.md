@@ -1,6 +1,6 @@
 # GitHub Plugin
 
-GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), cross-repository roadmap and dependency mapping, release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, and interactive setup for GitHub MCP server and gh CLI.
+GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), cross-repository roadmap and dependency mapping, Dependabot PR triage for any ecosystem (urgency, fixes on the branch, major verdicts, opt-in auto-merge), release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, and interactive setup for GitHub MCP server and gh CLI.
 
 ## Skills
 
@@ -14,6 +14,7 @@ GitHub workflows: feature development with branch/commit/PR flow, addressing PR 
 | `/github:actionlint` | Set up actionlint CI — lint GitHub Actions workflow files on push and PR using reviewdog/action-actionlint |
 | `/github:pm` | Issue and project board management — create issues (Epic/Feature/Task/Bug), expand Epics into sub-issues, triage missing fields, and list board items |
 | `/github:roadmap` | Cross-repository dependency map — what is blocked, by what, and what is actionable now, generated on demand from GitHub's own issue graph |
+| `/github:dependabot` | Work through the open Dependabot PRs of a repository in any ecosystem — urgency from advisories, close the dead ones, audit changelogs, fix on the Dependabot branch, give majors a verdict, auto-merge provably safe patch/minor (opt-in), hand the rest over as reviewed PRs |
 
 ## Prerequisites
 
@@ -47,15 +48,19 @@ Make the token available to Claude's environment using any of these methods:
 
 > **Note:** OAuth flow support may remove the token requirement in the future.
 
-### `jq` (for `/github:roadmap`)
+### `jq` (for `/github:roadmap` and `/github:dependabot`)
 
-The roadmap skill's `fetch-graph.sh` normalizes the GraphQL response with `jq`.
+The roadmap skill's `fetch-graph.sh` and the dependabot skill's scripts normalize GitHub responses with `jq`.
 
 ```bash
 jq --version   # any 1.6+
 ```
 
 Install with `brew install jq` (macOS) or your distribution's package manager. The script exits with a clear message if it is missing.
+
+### `osv-scanner` (optional, for `/github:dependabot`)
+
+`/github:dependabot` reads advisories from Dependabot alerts. Where those are not readable (alerts disabled, a cloud session without access), it falls back to [osv-scanner](https://google.github.io/osv-scanner/) on the checkout (`brew install osv-scanner`). Without either, the run reports advisories as unknown rather than none.
 
 ### `uvx` (for git MCP server)
 
@@ -109,6 +114,18 @@ To add actionlint CI for linting GitHub Actions workflows:
 
 ```
 /github:actionlint
+```
+
+To work through the open Dependabot PRs of the current repository (`--dry-run` plans and reports without writing anything):
+
+```
+/github:dependabot
+```
+
+On a schedule (a Routine, or `claude -p` from cron), pass `--unattended`: the run acts without pausing and leaves its report and the decisions it needs in a `Dependabot triage` issue, where a comment answers them for the next run.
+
+```
+/github:dependabot --unattended
 ```
 
 ## MCP Servers
@@ -238,6 +255,39 @@ Cross-repository dependency map, regenerated on every run:
 
 No roadmap file is written. A checked-in roadmap is a copy of state GitHub already holds, and it starts lying the first time an issue is closed without it being updated.
 
+### `/github:dependabot`
+
+Takes every open Dependabot PR of the current repository to closed, auto-merged, ready to merge, or postponed with a recorded reason:
+
+1. Preflight: repository, default branch, `dependabot` config, `.github/dependabot.yml` (groups, PR limits, `ignore` entries)
+2. Keeps last run's ready PRs ready: conflicts, red checks, new heads, group PRs Dependabot regenerated
+3. Collects the PRs (`scripts/collect.sh`) and ranks them by urgency from advisories (`scripts/advisories.sh`)
+4. Closes the dead ones — gone, superseded, duplicate — from the dependency-graph SBOM (`scripts/classify.sh`)
+5. Plans lanes, with a per-run cap so a large backlog drains over several runs
+6. Audits the changelog of every package each PR moves, per-ecosystem commands in `reference/ecosystems.md`
+7. Fixes on the Dependabot branch what breaks: lockfile regeneration, parent bumps, code and test changes
+8. Posts a TLDR review, then auto-merges (only when every gate item holds and the repository opted in) or labels the PR ready and requests the maintainer
+9. Gives every major a verdict; postponed updates keep their assessment or get an `ignore` entry with the condition that lifts it
+10. Asks decisions with `AskUserQuestion` and ends with a short report; with `--unattended`, writes both to a tracking issue answered by comment
+
+Claude never merges outside the gate in `reference/auto-merge.md`, and never closes a PR to postpone it: Dependabot would skip that version.
+
+#### Usage
+
+Run it from a checkout of the repository, in one of three modes chosen only by the arguments:
+
+| Command | When |
+|---|---|
+| `/github:dependabot --dry-run` | First time in a repository: plan and report, nothing written |
+| `/github:dependabot` | You are at the terminal: it presents the plan, does the work, asks decisions as it goes |
+| `/github:dependabot --unattended` | Nobody watches (a Routine, `claude -p` from cron): it acts without pausing and writes report and decisions to a `Dependabot triage` issue |
+
+- **Your queue** after a run is `is:pr is:open label:ready-to-merge`: every PR there is green, reviewed with a TLDR and only waits for your merge. The report gives a merge order when two PRs clash on the lockfile.
+- **Decisions** (a framework major, a package to drop, the config) are asked interactively, or posted in the tracking issue in unattended mode. Answer there with a comment such as `D1: A`; the next run acts on it, and an interactive run asks the ones still open.
+- **Large backlogs** drain over several runs: each run takes `max_deep_work_per_run` PRs (5) through audit and fixes, closes the dead ones and lists the rest under "Next run".
+- **Auto-merge** stays off until the repository opts in. At the end of the first run the skill offers to write the `dependabot` key of `.claude/github.json`; see `skills/dependabot/reference/config.md` for every key.
+- **On a schedule**: `claude -p "/github:dependabot --unattended"` from the checkout, or a Routine with the same prompt. In a cloud session `@dependabot` commands do not reach Dependabot, so the run rebases and closes through the API instead.
+
 ## Project Config
 
 Per-project defaults live in `.claude/github.json`:
@@ -252,6 +302,10 @@ Per-project defaults live in `.claude/github.json`:
     "externalEdges": [
       { "blocked": "acme-corp/app#310", "by": "acme-labs/shared-modules#15" }
     ]
+  },
+  "dependabot": {
+    "auto_merge": { "enabled": true, "update_types": ["patch", "minor"] },
+    "local_checks": ["npm run lint", "npm run typecheck"]
   }
 }
 ```
@@ -263,6 +317,7 @@ Per-project defaults live in `.claude/github.json`:
 | `project.number` / `project.owner` | `github:setup` Step 7 | `github:pm`, `github:feature` Step 8a |
 | `roadmap.repos` | manually | `github:roadmap` |
 | `roadmap.externalEdges` | manually | `github:roadmap` |
+| `dependabot.*` | `github:dependabot` (offered on first run) or manually — see `skills/dependabot/reference/config.md` | `github:dependabot` |
 
 Every key is optional. Omitting one is what selects its default, which is why `github:setup` does not write defaults the user did not change.
 
