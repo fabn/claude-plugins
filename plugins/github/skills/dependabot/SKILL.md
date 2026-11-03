@@ -32,9 +32,31 @@ is in [reference/auto-merge.md](reference/auto-merge.md), comment and report
 templates in [reference/review-template.md](reference/review-template.md),
 config keys in [reference/config.md](reference/config.md).
 
-Arguments: `--dry-run` runs every step up to the plan and prints the report
-with what would be done: nothing is closed, pushed, labelled or merged, in any
-step (Steps 1 and 4 list their actions instead of taking them).
+## Modes
+
+The mode comes only from the arguments, never from the wording of the request.
+
+| Arguments | Mode |
+|---|---|
+| none | **Interactive**: present the plan, act, ask decisions with `AskUserQuestion` |
+| `--dry-run` | Every step up to the plan, then the report with what would be done: nothing is closed, pushed, labelled or merged in any step (Steps 1 and 4 list their actions instead of taking them) |
+| `--unattended` | Nobody is watching (a Routine, `claude -p`, a schedule): act without pausing, decisions go to the tracking issue. Combined with `--dry-run`, only the issue is written |
+
+**Unattended** changes only these points; everything else, the gate included,
+is the same:
+
+- No `AskUserQuestion` and no pause after the plan (Step 5). Every decision
+  becomes an entry in the **tracking issue** (Step 11), and the run goes on
+  with what does not depend on it.
+- The answers are read at the start of the next run (Step 0): the
+  maintainer's comments on the issue after the last report. An answer that
+  does not match an option is followed if it is clear, asked again otherwise.
+- Nothing the user alone can decide is done: no *Not wanted* verdict, no
+  *Upgrade now* outside security majors, no Decision acted on, and no config
+  key written. *Blocked* `ignore` entries still go into the config PR: merging
+  it is the confirmation.
+- Checks after a push are waited on for at most 30 minutes; what is still
+  pending is left to Step 1 of the next run.
 
 ## Tools Used
 
@@ -107,6 +129,9 @@ step (Steps 1 and 4 list their actions instead of taking them).
    entries. No file and still Dependabot PRs: security updates only; say so.
 4. Set `S` to a scratch directory for the JSON the steps share (the
    session's scratchpad when it has one).
+5. The tracking issue (open, label `dependabot-triage`, created by Step 11):
+   read the maintainer's comments after our last report. Each one answers a
+   decision listed there; act on it in this run, in any mode.
 
 ### Step 1 — Keep last run's PRs ready
 
@@ -230,7 +255,8 @@ never ends. Auto-merge candidates count toward the cap: the audit is the
 expensive part of the gate.
 
 Present the plan (lane counts, the PRs taken this run, the decisions to ask)
-before acting on it. In `--dry-run`, stop here and print the report.
+before acting on it. In `--dry-run`, stop here and print the report;
+`--unattended` puts it in the report and goes on.
 
 ### Step 6 — Changelog audit (every PR, every package)
 
@@ -414,12 +440,17 @@ Decisions are asked, not written into the report as questions:
 - The question carries the facts (package, versions, size, what breaks, PR
   number) so it can be answered without scrolling back.
 - A free-text answer may describe a way none of the options offered: follow it.
-- Unattended runs (a Routine or scheduled agent): send a `PushNotification`
-  first — one line, how many questions and the most urgent — then ask.
-
 Then the report ([template](reference/review-template.md)): what was done and
 what waits on the maintainer, counts by default, rows only where the user is
 needed.
+
+**Unattended**: the report and the decisions go to the tracking issue instead,
+one per repository (`Dependabot triage`, label `dependabot-triage`, created on
+first use). Its body is replaced with the latest report; each run adds one
+comment with that run's decisions in the issue template, so the maintainer
+answers there and is notified by GitHub. A decision answered meanwhile
+disappears from the next one. Send a `PushNotification` when the tool exists,
+one line: how many decisions, the most urgent, the issue link.
 
 ## Error Handling
 

@@ -122,6 +122,12 @@ To work through the open Dependabot PRs of the current repository (`--dry-run` p
 /github:dependabot
 ```
 
+On a schedule (a Routine, or `claude -p` from cron), pass `--unattended`: the run acts without pausing and leaves its report and the decisions it needs in a `Dependabot triage` issue, where a comment answers them for the next run.
+
+```
+/github:dependabot --unattended
+```
+
 ## MCP Servers
 
 The plugin bundles two MCP servers:
@@ -262,7 +268,7 @@ Takes every open Dependabot PR of the current repository to closed, auto-merged,
 7. Fixes on the Dependabot branch what breaks: lockfile regeneration, parent bumps, code and test changes
 8. Posts a TLDR review, then auto-merges (only when every gate item holds and the repository opted in) or labels the PR ready and requests the maintainer
 9. Gives every major a verdict; postponed updates keep their assessment or get an `ignore` entry with the condition that lifts it
-10. Asks decisions with `AskUserQuestion` and ends with a short report
+10. Asks decisions with `AskUserQuestion` and ends with a short report; with `--unattended`, writes both to a tracking issue answered by comment
 
 Claude never merges outside the gate in `reference/auto-merge.md`, and never closes a PR to postpone it: Dependabot would skip that version.
 

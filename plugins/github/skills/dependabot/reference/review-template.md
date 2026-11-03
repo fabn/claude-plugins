@@ -107,3 +107,19 @@ Ignore entries revisited: <n kept, n dropped (package: why)> · Config PR: #<n> 
 
 Every PR number is a link. When nothing is open and nothing is vulnerable, say
 so in one line and stop.
+
+## Tracking issue decisions (unattended)
+
+One comment per run, after the issue body is replaced with the report:
+
+```markdown
+<!-- github:dependabot decisions -->
+Answer by commenting `D1: B` (or in words); the next run acts on it.
+
+**D1 — <package> <from> → <to>** (#<n>, size M): <what breaks, the facts needed to choose>
+- **A (recommended)** — <what Claude does next>
+- **B** — <what Claude does next>
+```
+
+The marker lets the next run find its last comment and read only the answers
+below it.

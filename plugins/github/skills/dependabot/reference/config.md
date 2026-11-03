@@ -60,4 +60,5 @@ No protection (or no permission to read it) means every check on the head counts
 When the key is absent, proceed with the defaults (auto-merge off) and, at the
 end of the run, offer once with `AskUserQuestion` to write the key: the
 maintainer, the auto-merge choice and the `local_checks` the run discovered.
-Write only the keys the user changed from their defaults.
+Write only the keys the user changed from their defaults. Unattended, this is
+a decision in the tracking issue.
