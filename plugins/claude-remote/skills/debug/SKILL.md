@@ -70,17 +70,34 @@ Grep for the canonical marker lines:
 - `[3/5] Installing common CLI tools`
 - `[4/5] Installing Claude Code plugins`
 - `[5/5] Delegating to repository setup`
+- `=== Repo setup started at` / `=== Repo setup complete at` — **one pair
+  per repository**: a session can clone several repos under `/home/user/`
+  and the script runs every repo's `.claude/scripts/setup.sh`, each in its
+  own block (the `repo:` line inside names it). Pair each `started` with
+  the next `complete`; a block without its `complete` is that repo failing.
+- `=== Setup summary ===` — one `OK`/`FAILED` line per step (`settings`,
+  `mise`, `session-hook`, `cli-tools`, `plugins`) and per repo (`repo <name>`), with the
+  exit code on failures
+- `=== User setup complete at <timestamp> (exit: <status>) ===` — status is
+  `ok`, `1 failure` or `N failures`
+
+Take only the **last run** in the log (from the last `=== User setup
+started at`): the file is appended to across sessions.
 
 A log with `[1/4]` … `[4/4]` markers comes from a web-UI script older than
-0.4.0: it does not install the repo's plugins. Tell the user to re-paste
+0.4.0: it does not install the repo's plugins. A completion marker without
+`(exit: ...)` and no `=== Setup summary ===` comes from a script older than
+0.5.0: it stops at the first failing command and delegates only to the
+**first** repo setup it finds — in a multi-repo session the other repos
+were never set up. In both cases tell the user to re-paste
 `${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh`.
-- `=== User setup complete at`
-- `=== Repo setup started at`
-- `=== Repo setup complete at`
 
-Determine the furthest marker reached. If any marker is missing, the
-script aborted between that marker and the previous one. Show the last
-30 lines above the point of failure.
+Since 0.5.0 the script never aborts on a failing command: start from the
+`FAILED` lines of the summary and show the log section of each failing
+step or repo block. If the summary or completion marker is missing, the
+process was killed (timeout / OOM) or is still running — show the last
+30 lines of the log. For a pre-0.5.0 log, determine the furthest marker
+reached and show the last 30 lines above the point of failure.
 
 ### Step 4: Pattern-match against troubleshooting.md
 
@@ -90,7 +107,10 @@ be multiple independent failures.
 
 ### Step 5: Repo-state audit
 
-Run these checks in the current working directory:
+Run these checks in the current working directory. If the working
+directory is not itself a repo (e.g. `/home/user` holding several cloned
+repos), run them in every `/home/user/*/` repo listed in the log's
+`Found repo setup:` lines:
 
 - `Glob(".claude/scripts/setup.sh")` — exists? executable?
 - `Glob(".claude/scripts/session-start.sh")` — exists? executable?
@@ -171,6 +191,7 @@ Produce a structured report:
 ```
 ## Status
 - Furthest phase reached: [marker]
+- Setup summary: [OK/FAILED lines, or "missing (pre-0.5.0 script / killed)"]
 - Detected failures: N
 
 ## Root cause

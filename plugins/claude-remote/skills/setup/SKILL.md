@@ -36,7 +36,15 @@ Reference doc: https://code.claude.com/docs/en/claude-code-on-the-web
 
 - `${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh` — canonical
   user-level script that must be pasted into the web UI "Setup script"
-  field. Source of truth; never edit in the web UI.
+  field. Source of truth; never edit in the web UI. It runs the
+  `.claude/scripts/setup.sh` of **every** repo cloned under `/home/user/`
+  (each in its own repo root, isolated, in sorted order) and never aborts:
+  failures are listed in a `=== Setup summary ===` block at the end of the log.
+  It also installs a user-level SessionStart hook
+  (`~/.claude/claude-remote-session-start.sh`, registered in
+  `~/.claude/settings.json`) that trusts every repo's `mise.toml` and puts
+  every repo's mise tools on PATH, so multi-repo sessions need no change in
+  the repos themselves.
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/repo-setup-template.sh` —
   parametric template for the per-repo `.claude/scripts/setup.sh`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/session-start-template.sh` —
@@ -124,7 +132,10 @@ syntax check fails — restore from `.bak` if needed.
 Same procedure with `session-start-template.sh`. Keep:
 
 - The `CLAUDE_CODE_REMOTE` gate at the top (always).
-- The `$CLAUDE_ENV_FILE` PATH persistence block (always).
+- The `$CLAUDE_ENV_FILE` PATH persistence block (always). It handles both
+  layouts: a session opened on the repo itself, and one opened on a parent
+  folder holding several repos (it then trusts each child repo's
+  `mise.toml` and puts each repo's mise tools on PATH).
 - Only service blocks and healthcheck blocks for selected services/runtimes.
 
 If the file already exists, save a `.bak` first. Then `chmod +x` and `bash -n`.
@@ -351,7 +362,9 @@ Tell the user:
    are verified working in a cloud session.
 2. Paste the contents of `${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh`
    into the Claude Code web UI's **Setup script** field for the target
-   environment. Reference the web-environment doc for full instructions:
+   environment — or re-paste it if the environment already has an older
+   copy (pre-0.5.0 copies set up only the first repo of a multi-repo
+   session). Reference the web-environment doc for full instructions:
    Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/web-environment.md`
    and show the relevant excerpt.
 3. Add any secrets the repo needs (DB credentials, API tokens, etc.) to

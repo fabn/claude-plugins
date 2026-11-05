@@ -53,6 +53,11 @@ verify will offer to chain into it automatically on failure.
 
 ### Step 1: Guard — is this a configured repo?
 
+Run this in the repo being worked on. If the working directory is not
+itself a repo (a session opened on `/home/user` with several cloned repos),
+run the whole workflow once per `/home/user/*/` repo that has
+`.claude/scripts/setup.sh`, with one report table per repo.
+
 Check that all three prerequisites exist:
 
 - `.claude/scripts/setup.sh` is present and executable
@@ -168,8 +173,24 @@ Append a last-run indicator from `/tmp/claude-user-setup.log`:
 Last user-setup run: 2026-04-10T10:20:47Z  (exit: ok)
 ```
 
-Extract the timestamp from the `=== User setup complete at ... ===` line,
-or report `never / incomplete` if the marker is missing.
+Read the **last** `=== User setup complete at <timestamp> (exit: <status>) ===`
+line (the log is appended to across sessions): the timestamp is everything
+after `complete at ` up to the first space or ` ===`, the status is the
+text inside `(exit: ...)` — `ok`, `1 failure` or `N failures`. Report
+`never / incomplete` if the marker is missing, and `(exit: unknown —
+pre-0.5.0 setup script)` if the marker has no `(exit: ...)` part.
+
+When the status is not `ok`, also print the `FAILED` lines from the
+`=== Setup summary ===` block just above that marker, e.g.:
+
+```
+Last user-setup run: 2026-11-05T09:23:34Z  (exit: 1 failure)
+  FAILED  repo repo-b (exit 1)
+```
+
+A `FAILED` setup step counts as a FAIL row for Step 6 (offer debug) even
+when all probes pass — the failing step may have skipped work the probes
+don't cover.
 
 ### Step 5: All green → done
 
