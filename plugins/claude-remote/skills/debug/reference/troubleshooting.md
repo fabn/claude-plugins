@@ -3,13 +3,37 @@
 Keyed to log patterns found in `/tmp/claude-user-setup.log` and repo state.
 Used by `/claude-remote:debug` to match symptoms to fixes.
 
+Since 0.5.0 the user-level script never aborts: every step (`settings`,
+`mise`, `cli-tools`, `plugins`) and every repository setup (`repo <name>`)
+runs isolated, a failure is logged as `ERROR: step '<label>' failed with exit
+N — continuing`, and the log ends with a summary block plus a status on the
+completion marker:
+
+```
+=== Setup summary ===
+  OK      settings
+  OK      mise
+  OK      cli-tools
+  OK      plugins
+  OK      repo repo-a
+  FAILED  repo repo-b (exit 1)
+=== User setup complete at 2026-11-05T09:23:34+00:00 (exit: 1 failure) ===
+```
+
+Start from the `FAILED` lines, then read the log section of that step (between
+its `[n/5]` marker and the next one) or of that repo (its own
+`=== Repo setup started ===` block — there is one block per repository).
+
 ## Log-line patterns
 
 | Pattern in log | Diagnosis | Fix |
 |---|---|---|
 | Log file does not exist at all | User-level setup script never ran. The "Setup script" field in the web UI environment is empty or contains a broken script. | Paste `${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh` into the web UI's Setup script field and restart the session. |
-| `=== User setup started at` present, `[1/5]` missing | Script aborted immediately — typically a `set -e` failure on the very first line or a pasted script with trailing carriage returns (Windows line endings). | Re-copy the canonical script; ensure no CRLF. `file` should report `ASCII text`, not `ASCII text, with CRLF line terminators`. |
-| `[1/5]` present, `[2/5]` missing | `find` command or `cp settings.remote.json` failed. Usually means the repo wasn't cloned to `/home/user/<repo>/` at the expected depth. | Verify the repo actually lands under `/home/user/` and that `.claude/scripts/setup.sh` exists in the repo (run `/claude-remote:setup` if not). |
+| `=== User setup started at` present, `[1/5]` missing | Script aborted immediately — typically a pasted script with trailing carriage returns (Windows line endings), or a pre-0.5.0 script hitting a `set -e` failure on the very first lines. | Re-copy the canonical script; ensure no CRLF. `file` should report `ASCII text`, not `ASCII text, with CRLF line terminators`. |
+| `[1/5]` present, `[2/5]` missing | Pre-0.5.0 script: `find` or `cp settings.remote.json` failed under `set -e`. Since 0.5.0 this step cannot abort the script; the same failure shows up as `FAILED  settings` in the summary. | Re-paste the canonical script. Verify the repo lands under `/home/user/<repo>/` and that `.claude/scripts/setup.sh` exists in it (run `/claude-remote:setup` if not). |
+| `FAILED  <step> (exit N)` in the `=== Setup summary ===` block | That step failed; the remaining steps and repos still ran. `settings` → `cp` of `settings.remote.json`; `mise` → mise download/settings; `cli-tools` → `apt-get`; `plugins` → at least one marketplace/plugin (see its `WARNING:` lines). | Match the step's own log lines against the rows below. |
+| `FAILED  repo <name> (exit N)` in the summary | That repository's `.claude/scripts/setup.sh` exited non-zero. Other repos were set up anyway. | Read that repo's `=== Repo setup started ===` block (its `repo:` line names the path); fix the failing command in that repo's `setup.sh`. |
+| Session cloned several repos under `/home/user/` but the log shows a single `Running .../setup.sh` / `=== Repo setup started` block | Web-UI script older than 0.5.0: it delegated only to the first repo setup it found, so the other repos' `mise.toml` was never trusted and their tools/bootstrap never ran. Also recognizable by a completion marker without `(exit: ...)` and no `=== Setup summary ===`. | Re-paste `${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh`. |
 | `[2/5]` present, `mise` install failed | Network policy blocks `mise.run` or `curl` proxy misbehaving. | Confirm the environment's network access is **Trusted** or **Full**. `mise.run` is reachable through the Trusted allowlist. |
 | `[2/5]` followed by `mise: command not found` later | mise was installed but not placed on PATH for the child shell. | The canonical script symlinks mise into `/usr/local/bin`; if missing, the script was edited. Re-paste the canonical. |
 | `API rate limit exceeded` / `403` from `api.github.com` during `mise install` | Cloud sandbox is unauthenticated; mise hit GitHub's anonymous rate limit while resolving `latest` or fetching a GitHub-backed backend. | Generate `mise.lock` locally (`mise lock --platform linux-x64,macos-arm64`), commit it, and re-run. With `mise.lock` present, plain `mise install` automatically prefers locked URLs over version ranges and skips the API. If the user is on an old `setup.sh`, suggest `/claude-remote:setup` to regenerate. |
@@ -20,13 +44,13 @@ Used by `/claude-remote:debug` to match symptoms to fixes.
 | `mise.lock` missing in repo | No lockfile committed — every cloud session re-resolves versions via the GitHub API and risks rate limiting. | Run `mise lock --platform linux-x64,macos-arm64`, commit `mise.lock`. Also set `[settings] locked = true` in `mise.toml` so future installs fail fast on missing entries instead of silently re-resolving via GitHub. Caveat: this flag also enforces strict mode on tools in `~/.config/mise/config.toml`; run `mise lock -g` once locally if you have global tools. |
 | `Skipping orphaned enabledPlugins entry ...: marketplace not registered` in the Claude Code debug output, or no plugin skills in the session | The marketplaces in `.claude/settings.json` were never registered: a cloud session has nobody to accept the trust prompt. Typically the web-UI script predates 0.4.0 (log shows `[4/4]` markers, no `Installing Claude Code plugins`). | Re-paste `${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh`; its `[4/5]` step registers the marketplaces and installs every `enabledPlugins` entry. |
 | `[4/5] Installing Claude Code plugins` followed by `WARNING: could not add marketplace` / `could not install` | Marketplace clone blocked by the network policy, or a plugin name in `enabledPlugins` does not exist in its marketplace. | Confirm `github.com` is reachable (Trusted network access covers it); check the plugin name against the marketplace's `marketplace.json`. |
-| `[5/5] Delegating to repository setup` then `No repo setup script found under /home/user/` | The repo's `.claude/scripts/setup.sh` is missing, not executable, or deeper than `maxdepth 4`. | Run `/claude-remote:setup` in the repo root; confirm the file exists and is executable (`chmod +x .claude/scripts/setup.sh`). |
-| `=== Repo setup started` present, `=== Repo setup complete` missing | Repo setup aborted mid-run — inspect last 30 lines above for the failing command. | Fix the failing step in `.claude/scripts/setup.sh` and re-run. |
+| `[5/5] Delegating to repository setup` then `No repo setup script found in ...` (pre-0.5.0: `under /home/user/`) | No repo has `.claude/scripts/setup.sh` directly under `/home/user/<repo>/` (or in the working directory). | Run `/claude-remote:setup` in the repo root and commit the file. A non-executable file is still run (with `bash`, after a `WARN`), but `chmod +x .claude/scripts/setup.sh` anyway. |
+| A `=== Repo setup started` block without its own `=== Repo setup complete` before the next block or the summary | That repo's setup aborted mid-run (also listed as `FAILED  repo <name>`) — inspect the last lines of that block for the failing command. | Fix the failing step in `.claude/scripts/setup.sh` and re-run. |
 | `bundle: command not found` (during repo setup) | mise-managed Ruby shims not on PATH in the non-interactive child shell. | Ensure `export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"` is at the top of `.claude/scripts/setup.sh` and that `mise install` ran first. |
 | `mysql: unable to connect` / `Can't connect to local MySQL server` | MySQL not installed on web VM. | The generated setup.sh must `apt-get install -y mysql-server` before `service mysql start`. |
 | `ECONNREFUSED` / `403` on npm | Network proxy issue or private registry blocked. | Check environment network access level; add registry domain under Custom network access. |
 | `SETUP INCOMPLETE: ...` emitted by session-start hook | Runtime was installed at setup time but is not reachable now. Usually because `$CLAUDE_ENV_FILE` PATH injection block is missing from `session-start.sh`. | Confirm the PATH persistence block is present and `mise activate bash` is eval'd. |
-| No `=== User setup complete` line | User-level script crashed before the final `echo`. Tail the log for the actual error. | Show last 40 lines of `/tmp/claude-user-setup.log`. |
+| No `=== User setup complete` line | Since 0.5.0 the script cannot abort on a failing command, so the process was killed (setup timeout, OOM) or the session is still running it; pre-0.5.0 it may also be a `set -e` abort. Tail the log for the last step reached. | Show last 40 lines of `/tmp/claude-user-setup.log`. |
 
 ## Repo-state checks
 

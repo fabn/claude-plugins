@@ -30,6 +30,17 @@ cat "$(claude plugin path claude-remote)/scripts/user-setup-template.sh"
 Copy the entire contents (including the shebang) and paste into the **Setup
 script** field.
 
+One copy serves every repository: the script runs the
+`.claude/scripts/setup.sh` of each repo cloned under `/home/user/` (each in
+its own repo root, in sorted order), so an environment whose sessions clone
+several repos needs nothing extra. A failing step or repo setup does not stop
+the others; the script always exits 0 so the session starts and can diagnose
+itself.
+
+If the environment already holds a copy older than 0.5.0, re-paste it: older
+copies delegate only to the first repo setup found and abort at the first
+failing command.
+
 **Do NOT edit the script in the web UI.** If something needs to change, edit
 `plugins/claude-remote/scripts/user-setup-template.sh` in this marketplace
 repo first, then re-paste. `/claude-remote:debug` diffs deployed copies
@@ -65,5 +76,8 @@ kept enabled.
    claude --remote "check-tools"
    ```
    or start a session directly from the web UI.
-3. Watch `/tmp/claude-user-setup.log` inside the session to confirm all
-   phases completed. Run `/claude-remote:debug` if anything looks off.
+3. Check the end of `/tmp/claude-user-setup.log` inside the session: the
+   `=== Setup summary ===` block lists every step and repo as `OK` or
+   `FAILED`, and the final `=== User setup complete at ... (exit: ok) ===`
+   line gives the overall status. Run `/claude-remote:debug` if anything is
+   `FAILED`.

@@ -5,8 +5,11 @@ set -euo pipefail
 # Repo-level setup script — runs inside Claude Code web cloud sessions only.
 #
 # Invoked by the user-level setup script (pasted into the web environment
-# "Setup script" field) which discovers this file via:
-#   find /home/user -maxdepth 4 -path '*/.claude/scripts/setup.sh'
+# "Setup script" field), which discovers every /home/user/*/.claude/scripts/setup.sh
+# (plus the working directory when it is itself the repo) and runs each one
+# in its own repo root, isolated: a non-zero exit here is reported as
+# "FAILED  repo <name> (exit N)" in the log summary and does not stop the
+# other repositories' setup.
 #
 # Canonical reference for the user-level script:
 #   ${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh
