@@ -35,7 +35,10 @@ One copy serves every repository: the script runs the
 its own repo root, in sorted order), so an environment whose sessions clone
 several repos needs nothing extra. A failing step or repo setup does not stop
 the others; the script always exits 0 so the session starts and can diagnose
-itself.
+itself. It also registers a user-level SessionStart hook in
+`~/.claude/settings.json` that trusts every repo's `mise.toml` and puts every
+repo's mise tools on PATH — needed because a session opened on `/home/user`
+runs no repo's own `session-start.sh`.
 
 If the environment already holds a copy older than 0.5.0, re-paste it: older
 copies delegate only to the first repo setup found and abort at the first

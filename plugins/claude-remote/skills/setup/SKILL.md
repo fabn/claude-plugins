@@ -40,6 +40,11 @@ Reference doc: https://code.claude.com/docs/en/claude-code-on-the-web
   `.claude/scripts/setup.sh` of **every** repo cloned under `/home/user/`
   (each in its own repo root, isolated, in sorted order) and never aborts:
   failures are listed in a `=== Setup summary ===` block at the end of the log.
+  It also installs a user-level SessionStart hook
+  (`~/.claude/claude-remote-session-start.sh`, registered in
+  `~/.claude/settings.json`) that trusts every repo's `mise.toml` and puts
+  every repo's mise tools on PATH, so multi-repo sessions need no change in
+  the repos themselves.
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/repo-setup-template.sh` —
   parametric template for the per-repo `.claude/scripts/setup.sh`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/session-start-template.sh` —

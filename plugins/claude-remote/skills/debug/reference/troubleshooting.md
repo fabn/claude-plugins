@@ -4,7 +4,7 @@ Keyed to log patterns found in `/tmp/claude-user-setup.log` and repo state.
 Used by `/claude-remote:debug` to match symptoms to fixes.
 
 Since 0.5.0 the user-level script never aborts: every step (`settings`,
-`mise`, `cli-tools`, `plugins`) and every repository setup (`repo <name>`)
+`mise`, `session-hook`, `cli-tools`, `plugins`) and every repository setup (`repo <name>`)
 runs isolated, a failure is logged as `ERROR: step '<label>' failed with exit
 N — continuing`, and the log ends with a summary block plus a status on the
 completion marker:
@@ -13,6 +13,7 @@ completion marker:
 === Setup summary ===
   OK      settings
   OK      mise
+  OK      session-hook
   OK      cli-tools
   OK      plugins
   OK      repo repo-a
@@ -31,7 +32,7 @@ its `[n/5]` marker and the next one) or of that repo (its own
 | Log file does not exist at all | User-level setup script never ran. The "Setup script" field in the web UI environment is empty or contains a broken script. | Paste `${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh` into the web UI's Setup script field and restart the session. |
 | `=== User setup started at` present, `[1/5]` missing | Script aborted immediately — typically a pasted script with trailing carriage returns (Windows line endings), or a pre-0.5.0 script hitting a `set -e` failure on the very first lines. | Re-copy the canonical script; ensure no CRLF. `file` should report `ASCII text`, not `ASCII text, with CRLF line terminators`. |
 | `[1/5]` present, `[2/5]` missing | Pre-0.5.0 script: `find` or `cp settings.remote.json` failed under `set -e`. Since 0.5.0 this step cannot abort the script; the same failure shows up as `FAILED  settings` in the summary. | Re-paste the canonical script. Verify the repo lands under `/home/user/<repo>/` and that `.claude/scripts/setup.sh` exists in it (run `/claude-remote:setup` if not). |
-| `FAILED  <step> (exit N)` in the `=== Setup summary ===` block | That step failed; the remaining steps and repos still ran. `settings` → `cp` of `settings.remote.json`; `mise` → mise download/settings; `cli-tools` → `apt-get`; `plugins` → at least one marketplace/plugin (see its `WARNING:` lines). | Match the step's own log lines against the rows below. |
+| `FAILED  <step> (exit N)` in the `=== Setup summary ===` block | That step failed; the remaining steps and repos still ran. `settings` → `cp` of `settings.remote.json`; `mise` → mise download/settings; `session-hook` → writing `~/.claude/claude-remote-session-start.sh` or merging it into `~/.claude/settings.json` (usually malformed JSON there); `cli-tools` → `apt-get`; `plugins` → at least one marketplace/plugin (see its `WARNING:` lines). | Match the step's own log lines against the rows below. |
 | `FAILED  repo <name> (exit N)` in the summary | That repository's `.claude/scripts/setup.sh` exited non-zero. Other repos were set up anyway. | Read that repo's `=== Repo setup started ===` block (its `repo:` line names the path); fix the failing command in that repo's `setup.sh`. |
 | Session cloned several repos under `/home/user/` but the log shows a single `Running .../setup.sh` / `=== Repo setup started` block | Web-UI script older than 0.5.0: it delegated only to the first repo setup it found, so the other repos' `mise.toml` was never trusted and their tools/bootstrap never ran. Also recognizable by a completion marker without `(exit: ...)` and no `=== Setup summary ===`. | Re-paste `${CLAUDE_PLUGIN_ROOT}/scripts/user-setup-template.sh`. |
 | `[2/5]` present, `mise` install failed | Network policy blocks `mise.run` or `curl` proxy misbehaving. | Confirm the environment's network access is **Trusted** or **Full**. `mise.run` is reachable through the Trusted allowlist. |
@@ -49,6 +50,7 @@ its `[n/5]` marker and the next one) or of that repo (its own
 | `bundle: command not found` (during repo setup) | mise-managed Ruby shims not on PATH in the non-interactive child shell. | Ensure `export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"` is at the top of `.claude/scripts/setup.sh` and that `mise install` ran first. |
 | `mysql: unable to connect` / `Can't connect to local MySQL server` | MySQL not installed on web VM. | The generated setup.sh must `apt-get install -y mysql-server` before `service mysql start`. |
 | `ECONNREFUSED` / `403` on npm | Network proxy issue or private registry blocked. | Check environment network access level; add registry domain under Custom network access. |
+| Session opened on `/home/user` (several repos) and a repo's tools (e.g. `fvm`) are not on PATH | No project `.claude/settings.json` exists at `/home/user`, so no repo's `session-start.sh` runs; only user-level hooks do. The user-level hook `~/.claude/claude-remote-session-start.sh` (installed by the ≥ 0.5.0 user script) is missing or failed. | Check `~/.claude/settings.json` lists it under `hooks.SessionStart` and the summary shows `OK  session-hook`; otherwise re-paste the canonical script. Run the hook by hand to inspect: `echo '{}' \| CLAUDE_ENV_FILE=/tmp/e ~/.claude/claude-remote-session-start.sh; cat /tmp/e`. |
 | `SETUP INCOMPLETE: ...` emitted by session-start hook | Runtime was installed at setup time but is not reachable now. Usually because `$CLAUDE_ENV_FILE` PATH injection block is missing from `session-start.sh`. | Confirm the PATH persistence block is present and `mise activate bash` is eval'd. |
 | No `=== User setup complete` line | Since 0.5.0 the script cannot abort on a failing command, so the process was killed (setup timeout, OOM) or the session is still running it; pre-0.5.0 it may also be a `set -e` abort. Tail the log for the last step reached. | Show last 40 lines of `/tmp/claude-user-setup.log`. |
 

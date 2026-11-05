@@ -20,7 +20,9 @@ set -o pipefail
 # EVERY repository's own .claude/scripts/setup.sh for repo-specific setup
 # (bundle install, npm install, service startup, etc.). A session can clone
 # several repositories side by side under /home/user/; each one is set up in
-# its own repo root, in a deterministic (sorted) order.
+# its own repo root, in a deterministic (sorted) order. It also installs a
+# user-level SessionStart hook (~/.claude/settings.json) that trusts every
+# repo's mise config and puts every repo's mise tools on PATH in each session.
 #
 # Logs everything to /tmp/claude-user-setup.log; the repo-level setup scripts
 # tee to the same file so /claude-remote:debug has a single source of truth.
@@ -156,6 +158,59 @@ install_mise() {
   mise settings ruby.github_attestations=false
 }
 run_step "mise" install_mise
+
+# ── User-level SessionStart hook: mise trust + PATH for every repo ──
+# A session opened on the parent folder (/home/user) loads no project
+# .claude/settings.json, so no repo's own session-start.sh runs, and even a
+# repo hook only knows its own repo. A user-level hook in ~/.claude/settings.json
+# runs in every session (verified in cloud sessions: it fires at startup and
+# its $CLAUDE_ENV_FILE output reaches the Bash tool). It trusts every repo's
+# mise config and prepends each repo's mise tool dirs (plus the shims) to PATH,
+# so tools of all repos work from any cwd without touching the repos.
+SESSION_HOOK="$HOME/.claude/claude-remote-session-start.sh"
+install_session_hook() {
+  mkdir -p "$HOME/.claude"
+  {
+    echo '#!/usr/bin/env bash'
+    echo '# Installed by the claude-remote user setup script (user-setup-template.sh).'
+    printf 'SEARCH_ROOT=%q\n' "$SEARCH_ROOT"
+    cat <<'HOOK'
+cat >/dev/null  # drain the hook input
+[ -n "${CLAUDE_ENV_FILE:-}" ] && command -v mise >/dev/null 2>&1 || exit 0
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+prefix=""
+# The project dir goes last so its tools come first on PATH.
+for repo in "$SEARCH_ROOT"/*/ "$PROJECT_DIR"; do
+  repo="${repo%/}"
+  [ -f "$repo/mise.toml" ] || [ -f "$repo/.tool-versions" ] || continue
+  [ -f "$repo/mise.toml" ] && { mise trust "$repo/mise.toml" >/dev/null 2>&1 || true; }
+  while IFS= read -r bin_dir; do
+    [ -n "$bin_dir" ] && prefix="$bin_dir:$prefix"
+  done < <(cd "$repo" && mise bin-paths 2>/dev/null)
+done
+prefix="$prefix$HOME/.local/bin:$HOME/.local/share/mise/shims"
+# Relative form: composes with PATH lines written by other SessionStart hooks.
+echo "export PATH=\"$prefix:\$PATH\"" >> "$CLAUDE_ENV_FILE"
+exit 0
+HOOK
+  } > "$SESSION_HOOK"
+  chmod +x "$SESSION_HOOK"
+
+  local settings="$HOME/.claude/settings.json" tmp
+  local entry='{"matcher":"","hooks":[{"type":"command","command":$cmd}]}'
+  if [ ! -s "$settings" ]; then
+    jq -n --arg cmd "$SESSION_HOOK" "{hooks:{SessionStart:[$entry]}}" > "$settings"
+  else
+    # Merge: keep everything else, replace only our own entry (idempotent).
+    tmp="$(mktemp)"
+    jq --arg cmd "$SESSION_HOOK" "
+      .hooks.SessionStart = ([(.hooks.SessionStart // [])[]
+        | select([.hooks[]?.command] | index(\$cmd) | not)] + [$entry])" "$settings" > "$tmp"
+    mv "$tmp" "$settings"
+  fi
+  echo "  Installed user-level SessionStart hook: $SESSION_HOOK"
+}
+run_step "session-hook" install_session_hook
 
 # ── Common CLI tools (gh, jq) ────────────────────────────────────
 # gh is NOT pre-installed on Claude web VMs; jq IS pre-installed. apt-get

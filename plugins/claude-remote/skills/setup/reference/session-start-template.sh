@@ -36,6 +36,9 @@ fi
 # A session can also open on a parent folder (e.g. /home/user) holding several
 # cloned repos. In that case $CLAUDE_PROJECT_DIR has no mise.toml of its own,
 # so trust every child repo's mise.toml and put each repo's tools on PATH.
+# (The canonical user-level setup script ≥ 0.5.0 also installs a user-level
+# SessionStart hook doing this for every repo; this block is the fallback for
+# environments that still run an older user-level script.)
 if [ -n "${CLAUDE_ENV_FILE:-}" ] && command -v mise >/dev/null 2>&1; then
   PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
   if [ -d "$PROJECT_DIR/.git" ] || [ -f "$PROJECT_DIR/mise.toml" ]; then

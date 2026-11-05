@@ -76,7 +76,7 @@ Grep for the canonical marker lines:
   own block (the `repo:` line inside names it). Pair each `started` with
   the next `complete`; a block without its `complete` is that repo failing.
 - `=== Setup summary ===` — one `OK`/`FAILED` line per step (`settings`,
-  `mise`, `cli-tools`, `plugins`) and per repo (`repo <name>`), with the
+  `mise`, `session-hook`, `cli-tools`, `plugins`) and per repo (`repo <name>`), with the
   exit code on failures
 - `=== User setup complete at <timestamp> (exit: <status>) ===` — status is
   `ok`, `1 failure` or `N failures`
