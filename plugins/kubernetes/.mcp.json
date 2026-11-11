@@ -5,8 +5,9 @@
       "command": "npx",
       "args": [
         "-y",
-        "kubernetes-mcp-server@latest",
-        "--read-only"
+        "kubernetes-mcp-server@0.1.2",
+        "--config",
+        "${CLAUDE_PLUGIN_ROOT}/mcp-config.toml"
       ]
     }
   }
