@@ -30,7 +30,7 @@ The metrics backend is deliberately not abstracted. The skill ships concrete, ru
 |--------|---------|---------|
 | `kubernetes.kubernetes-mcp` | `kubernetes-mcp-server` | Live pod specs, pod ages, deployment and node reads |
 
-Started with `--read-only`. The skill never mutates the cluster: changes go through the repository's own declaration and the project's own apply mechanism. The server inherits the ambient environment, so it picks up `KUBECONFIG` if set and falls back to `~/.kube/config` otherwise.
+Started with `read_only = true` from `mcp-config.toml` (the server dropped its runtime flags in 0.1.x, so settings live in TOML) and pinned to an exact version so a flag change upstream cannot break it silently. The skill never mutates the cluster: changes go through the repository's own declaration and the project's own apply mechanism. The server inherits the ambient environment, so it picks up `KUBECONFIG` if set and falls back to `~/.kube/config` otherwise.
 
 ## Getting Started
 
