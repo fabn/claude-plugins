@@ -16,8 +16,9 @@ description: |
 Takes every open Dependabot PR of the current repository to one of four ends:
 
 - **Closed** — no longer needed (gone, superseded, duplicate).
-- **Auto-merged** — a patch or minor that passed every item of the auto-merge
-  gate, only in repositories that enable it.
+- **Merged** — a patch or minor that passed every item of the auto-merge gate
+  (on unless the repository turns it off), or a ready PR the maintainer told
+  Claude to merge in the session.
 - **Ready to merge** — green, reviewed with a TLDR, labelled and handed to the
   maintainer, whose only job left is to read and click.
 - **Postponed with a reason** — a major with its assessment, an `ignore` entry
@@ -40,26 +41,35 @@ The mode comes only from the arguments, never from the wording of the request.
 |---|---|
 | none | **Interactive**: present the plan, act, ask decisions with `AskUserQuestion` |
 | `--dry-run` | Every step up to the plan, then the report with what would be done: nothing is closed, pushed, labelled or merged in any step (Steps 1 and 4 list their actions instead of taking them) |
-| `--unattended` | Nobody is watching (a Routine, `claude -p`, a schedule): act without pausing, decisions go to the tracking issue. Combined with `--dry-run`, only the issue is written |
+| `--unattended` | Act without pausing: no confirmation after the plan, decisions collected and asked at the end. Combined with `--dry-run`, only the report is written |
+
+**Where decisions go depends on the session, not on the flag.** When
+`AskUserQuestion` is among the session's tools, someone can answer: every
+decision is asked in chat, `--unattended` or not, and no tracking issue is
+written. Only a **headless** session (`claude -p`, a Routine, a schedule: no
+`AskUserQuestion`) uses the tracking issue.
 
 **Unattended** changes only these points; everything else, the gate included,
 is the same:
 
-- No `AskUserQuestion` and no pause after the plan (Step 5). Every decision
-  becomes an entry in the **tracking issue** (Step 11), and the run goes on
-  with what does not depend on it.
-- The answers are read at the start of the next run (Step 0): the
-  maintainer's comments on the issue after the last report. An answer that
-  does not match an option is followed if it is clear, asked again otherwise.
-- Nothing the user alone can decide is done: no *Not wanted* verdict, no
-  *Upgrade now* other than security majors and size S majors (both still end
-  in the maintainer's review), no Decision acted on, and no config key
-  written. *Blocked* `ignore` entries still go into the config PR: merging
-  it is the confirmation.
-- Wait in the foreground, never with a background shell: a `claude -p` or
-  Routine session can end with the turn and drop it. Checks after a push get
-  at most 30 minutes (`timeout 1800 gh pr checks <n> --watch`); what is still
-  pending is left to Step 1 of the next run.
+- No pause after the plan (Step 5) and no question before Step 11: the run
+  goes on with what does not depend on a decision, then asks them all.
+- Until a decision is answered, nothing the user alone can decide is done:
+  no *Not wanted* verdict, no *Upgrade now* other than security majors and
+  size S majors (both still end in the maintainer's review), no Decision
+  acted on, and no config key written. *Blocked* `ignore` entries still go
+  into the config PR: merging it is the confirmation.
+
+**Headless** adds:
+
+- Every decision becomes an entry in the **tracking issue** (Step 11). The
+  answers are read at the start of the next run (Step 0): the maintainer's
+  comments on the issue after the last report. An answer that does not match
+  an option is followed if it is clear, asked again otherwise.
+- Wait in the foreground, never with a background shell: the session can end
+  with the turn and drop it. Checks after a push get at most 30 minutes
+  (`timeout 1800 gh pr checks <n> --watch`); what is still pending is left to
+  Step 1 of the next run.
 
 ## Tools Used
 
@@ -70,14 +80,16 @@ is the same:
   - `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh` — the `dependabot` key of `.claude/github.json`
   - `gh pr merge|checks|view|edit|close`, `git`, and the ecosystem's own tools per the adapter
 - **GitHub MCP** — `pull_request_read`, `pull_request_review_write` (reviews), `update_pull_request` (reviewers, close), `add_issue_comment`, `issue_write` (labels), `get_job_logs`
-- **AskUserQuestion** — every decision; **PushNotification** first when running unattended
+- **AskUserQuestion** — every decision, whenever the session has it; **PushNotification** before the questions of an `--unattended` run, and with the issue link when headless
 - **Agent** — one read-only subagent per PR for changelog audits when several are audited in the same run
 
 ## Hard rules
 
-- **Merge only through the gate.** Claude merges nothing that fails or skips
-  one item of [auto-merge.md](reference/auto-merge.md), never pushes to the
-  default branch, never uses `--admin` or bypasses branch protection.
+- **Merge only through the gate or on the maintainer's answer.** Claude merges
+  a PR that passes every item of [auto-merge.md](reference/auto-merge.md), or
+  a ready PR the maintainer told it to merge in this session (Step 11).
+  Never pushes to the default branch, never uses `--admin` or bypasses branch
+  protection.
 - **Work on the Dependabot branch itself**, single PR or group: lock fixes,
   held-back packages, parent bumps and code fixes are commits on
   `dependabot/*`. Only an update with no Dependabot PR at all (a vulnerable
@@ -124,8 +136,16 @@ is the same:
    from a checkout of that repository (the scripts read `origin/<default>`):
    `git fetch -q origin <default>`, and `git fetch --unshallow` on a shallow
    clone.
-2. Config: `read-config.sh`, then `.config.dependabot // {}` with the defaults
-   of [config.md](reference/config.md). On `source: "claude-md"` follow the
+2. Config: `read-config.sh`, then `.config.dependabot // {}`. A key the
+   repository does not set takes the user's default (the plugin's options in
+   `/config`), then [config.md](reference/config.md)'s:
+   auto-merge `${user_config.dependabot_auto_merge}`, method
+   `${user_config.dependabot_merge_method}`, scope
+   `${user_config.dependabot_dependency_scope}`, ready label
+   `${user_config.dependabot_ready_label}`, PRs per run
+   `${user_config.dependabot_max_deep_work_per_run}`, packages per PR
+   `${user_config.dependabot_max_deps_per_pr}`. A value still shown as
+   `${user_config…}` is unset. On `source: "claude-md"` follow the
    plugin's migration prompt (as `github:pm` does) before going on.
 3. Read `.github/dependabot.yml`: ecosystems and directories, groups,
    `open-pull-requests-limit` per ecosystem (default 5), existing `ignore`
@@ -134,9 +154,10 @@ is the same:
    session's scratchpad when it has one).
 5. The tracking issue (open, label `dependabot-triage`, created by Step 11):
    read the maintainer's comments after our last report. Each one answers a
-   decision listed there; act on it in this run, in any mode. Interactive,
-   ask the decisions still unanswered with `AskUserQuestion` now, and record
-   the answers as a comment on the issue so the next run sees them.
+   decision listed there; act on it in this run, in any mode. When
+   `AskUserQuestion` is available, ask the decisions still unanswered now,
+   record the answers as a comment on the issue and close it once nothing is
+   left open in it.
 
 ### Step 1 — Keep last run's PRs ready
 
@@ -238,10 +259,17 @@ Every remaining PR, and every vulnerable package with no PR, gets one lane:
 |---|---|---|
 | **Auto-merge candidate** | Patch/minor admitted by the config, checks green, `ours: false` | Audit (Step 6), then the gate (Step 8) |
 | **Ready** | Patch/minor PRs and groups that are green and not auto-merge candidates, or that failed the gate | Audit, review, label |
-| **Fix** | Red CI; changelog ACTION; parent-blocked updates (with their parent bump); majors with verdict *Upgrade now* | On the Dependabot branch (Step 7) |
+| **Fix** | Red CI; changelog ACTION; single-package PRs dragging unrelated packages; parent-blocked updates (with their parent bump); majors with verdict *Upgrade now* | On the Dependabot branch (Step 7) |
 | **Batch** | Vulnerable packages with no PR whose fix is on the current major | One PR of ours from the default branch, the adapter's conservative update (Step 7) |
 | **Major** | Every major PR, and vulnerable packages whose only fix is a major | A verdict (Step 9) |
 | **Decision** | A choice no code change can make (dropping a package, a product trade-off), toolchain upgrades (a dev tool dragging its core across many minors) | Asked (Step 11) |
+
+**Dragged packages.** Read the lock diff (adapter) of every single-package PR
+before giving it a lane. Dependabot often lets one update move packages it
+does not need: in bundler, an `rspec-rails` bump that also moves `irb`,
+`rdoc`, `minitest`, `uri`. Such a PR goes to Fix, where the lock is
+regenerated from the default branch (Step 7 point 1). That commit takes it
+off the gate: it is merged on the maintainer's answer (Step 11).
 
 **Parents.** Before planning a bump, check that every package requiring it
 admits the target (adapter: parents). A parent that does not makes it
@@ -443,6 +471,13 @@ report, and publishing is the user's call (`github:release`).
 
 Decisions are asked, not written into the report as questions:
 
+- **Merge the ready PRs first.** When PRs are ready (Step 8 point 3, this run
+  or an earlier one still passing Step 1), the first question offers to merge
+  them, listing each with its TLDR and, for "read the impact" ones, the
+  impact: *Merge all in the merge plan's order (Recommended)* · *Only those
+  with no commit of ours* · *Leave them labelled*. Merge as
+  [auto-merge.md](reference/auto-merge.md) "Merging" says. Headless, they
+  stay labelled.
 - **`AskUserQuestion`**, one question per decision, at most four per call; with
   more, the most blocking first and the rest after acting on the answers.
 - Two to four options each, the recommended one first with "(Recommended)";
@@ -454,7 +489,7 @@ Then the report ([template](reference/review-template.md)): what was done and
 what waits on the maintainer, counts by default, rows only where the user is
 needed.
 
-**Unattended**: the report and the decisions go to the tracking issue instead,
+**Headless**: the report and the decisions go to the tracking issue instead,
 one per repository (`Dependabot triage`, label `dependabot-triage`, created on
 first use). Its body is replaced with the latest report; each run adds one
 comment with that run's decisions in the issue template, so the maintainer
@@ -479,6 +514,6 @@ matches the report: an advisory found not reachable is not called urgent.
 ## Reference Files
 
 - [reference/ecosystems.md](reference/ecosystems.md) — per-ecosystem commands: locked version, lock diff, regenerate, parents, hold back, changelog, smoke checks
-- [reference/auto-merge.md](reference/auto-merge.md) — the auto-merge gate and how to merge
+- [reference/auto-merge.md](reference/auto-merge.md) — the auto-merge gate and how to merge, through it or on the maintainer's answer
 - [reference/review-template.md](reference/review-template.md) — review, assessment, close and push comments; the report
 - [reference/config.md](reference/config.md) — `dependabot` keys of `.claude/github.json` and their defaults

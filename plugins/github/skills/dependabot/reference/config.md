@@ -7,7 +7,23 @@ plugin's shared script:
 "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" | jq '.config.dependabot // {}'
 ```
 
-Every key is optional; a missing key selects its default.
+Every key is optional. A missing key takes the user's default from the
+plugin's options (`/config`, stored under `pluginConfigs` in the user's
+settings), then the default below. The options cover the keys that are a
+person's preference rather than a repository's:
+
+| Option | Key |
+|---|---|
+| `dependabot_auto_merge` | `auto_merge.enabled` |
+| `dependabot_merge_method` | `auto_merge.method` |
+| `dependabot_dependency_scope` (`all` / `development`) | `auto_merge.dependency_scope` |
+| `dependabot_ready_label` | `ready_label` |
+| `dependabot_max_deep_work_per_run` | `max_deep_work_per_run` |
+| `dependabot_max_deps_per_pr` | `max_deps_per_pr` |
+
+The rest (checks, commands, ecosystems, maintainer) belong to the repository
+and live only here: Claude Code reads plugin options from user and managed
+settings, never from a repository.
 
 ```json
 {
@@ -36,7 +52,7 @@ Every key is optional; a missing key selects its default.
 | `maintainer` | the authenticated `gh` user | Requested as reviewer on every ready PR they did not author |
 | `ready_label` | `ready-to-merge` | Label of PRs that only wait on the maintainer's click; created on first use |
 | `required_checks` | the branch protection's required checks, else every check on the head | Checks that must be completed and successful before a PR is ready or auto-merged |
-| `auto_merge.enabled` | `false` | Turns on the auto-merge gate ([auto-merge.md](auto-merge.md)) |
+| `auto_merge.enabled` | `true` | The auto-merge gate ([auto-merge.md](auto-merge.md)); `false` hands every PR to the maintainer |
 | `auto_merge.update_types` | `["patch", "minor"]` | Bump types the gate admits. `major` is never admitted, whatever this says |
 | `auto_merge.ecosystems` | `["*"]` | Dependabot ecosystems (the `dependabot/<ecosystem>/` branch segment) the gate admits |
 | `auto_merge.dependency_scope` | `["development", "runtime"]` | Use `["development"]` to auto-merge only what never reaches production |
@@ -57,8 +73,9 @@ No protection (or no permission to read it) means every check on the head counts
 
 ## First run in a repository
 
-When the key is absent, proceed with the defaults (auto-merge off) and, at the
+When the key is absent, proceed with the defaults (auto-merge on) and, at the
 end of the run, offer once with `AskUserQuestion` to write the key: the
 maintainer, the auto-merge choice and the `local_checks` the run discovered.
-Write only the keys the user changed from their defaults. Unattended, this is
-a decision in the tracking issue.
+Write only the keys the user changed from their defaults. Headless, this is a
+decision in the tracking issue. Offer only keys that differ from the user's
+defaults: a preference for every repository belongs in `/config`.

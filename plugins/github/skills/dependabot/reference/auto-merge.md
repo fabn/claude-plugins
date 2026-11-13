@@ -8,16 +8,21 @@ The gate is for updates that are boring by evidence, not by hope.
 
 | # | Condition | How to check |
 |---|---|---|
-| 1 | `auto_merge.enabled` is `true`, and the PR's ecosystem and dependency scope are in the config | `config.md`; scope from the advisory or the manifest (dev group, `devDependencies`, `[dev-dependencies]` …) |
+| 1 | `auto_merge.enabled` is `true` (the default), and the PR's ecosystem and dependency scope are in the config | `config.md`; scope from the advisory or the manifest (dev group, `devDependencies`, `[dev-dependencies]` …) |
 | 2 | `deps` is non-empty, names every direct package the PR changes, and each is a `patch` or `minor` admitted by `auto_merge.update_types` | `collect.sh` `deps[].bump` (`unknown` fails), compared with the manifest/lock diff (adapter): a package in the diff and not in `deps` fails |
 | 3 | No `0.x` minor, no transitive dependency crossing a major, no new runtime dependency | `collect.sh` counts `0.x` minors as major; the lock diff (adapter) for the transitive ones |
 | 4 | Changelog audit verdict **NONE** for every dependency, direct and transitive ones crossing a minor | Step 6; each changelog actually read — unreadable is not NONE |
 | 5 | The branch carries no commit of ours | `collect.sh` `ours: false`. A PR we had to fix is reviewed by the maintainer |
 | 6 | At least one check is required, and every required check completed and successful on the recorded sha | `gh pr checks <n> --required`; with no `required_checks` and no branch protection, `gh pr checks <n>` (all checks). No check at all, pending, failed or skipped fails. `collect.sh`'s `checks` is for planning, not for this item |
-| 7 | `mergeable` is `MERGEABLE` | `gh pr view <n> --json mergeable,mergeStateStatus`; `UNKNOWN` fails (ask again later) |
+| 7 | `mergeable` is `MERGEABLE` | `gh pr view <n> --json mergeable,mergeStateStatus`. Right after a merge GitHub reports `UNKNOWN` for a few seconds: ask again every 5 seconds for up to a minute; still `UNKNOWN` fails |
 | 8 | No new warning against the default branch, when `warnings_check` is configured | Step 6 point 4 |
 
 ## Merging
+
+The same procedure merges the ready PRs the maintainer told Claude to merge
+(SKILL.md Step 11). Their answer stands in for items 1–5; items 6 and 7 are
+checked again on the recorded sha, and the verdict line reads
+`**Merged on <maintainer>'s answer** — required checks green on <sha>`.
 
 1. Merge pinned to the recorded sha, so a push that landed since refuses the
    merge:
