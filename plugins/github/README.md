@@ -14,7 +14,7 @@ GitHub workflows: feature development with branch/commit/PR flow, addressing PR 
 | `/github:actionlint` | Set up actionlint CI — lint GitHub Actions workflow files on push and PR using reviewdog/action-actionlint |
 | `/github:pm` | Issue and project board management — create issues (Epic/Feature/Task/Bug), expand Epics into sub-issues, triage missing fields, and list board items |
 | `/github:roadmap` | Cross-repository dependency map — what is blocked, by what, and what is actionable now, generated on demand from GitHub's own issue graph |
-| `/github:dependabot` | Work through the open Dependabot PRs of a repository in any ecosystem — urgency from advisories, close the dead ones, audit changelogs, fix on the Dependabot branch, give majors a verdict, auto-merge provably safe patch/minor (opt-in), hand the rest over as reviewed PRs |
+| `/github:dependabot` | Work through the open Dependabot PRs of a repository in any ecosystem — urgency from advisories, close the dead ones, audit changelogs, fix on the Dependabot branch, give majors a verdict, auto-merge provably safe patch/minor, merge the rest on your answer or hand it over as reviewed PRs |
 
 ## Prerequisites
 
@@ -122,7 +122,7 @@ To work through the open Dependabot PRs of the current repository (`--dry-run` p
 /github:dependabot
 ```
 
-On a schedule (a Routine, or `claude -p` from cron), pass `--unattended`: the run acts without pausing and leaves its report and the decisions it needs in a `Dependabot triage` issue, where a comment answers them for the next run.
+Pass `--unattended` to let it act without pausing and ask its decisions only at the end. On a schedule (a Routine, or `claude -p` from cron) nobody can answer in chat, so the report and the decisions go to a `Dependabot triage` issue, where a comment answers them for the next run.
 
 ```
 /github:dependabot --unattended
@@ -266,11 +266,11 @@ Takes every open Dependabot PR of the current repository to closed, auto-merged,
 5. Plans lanes, with a per-run cap so a large backlog drains over several runs
 6. Audits the changelog of every package each PR moves, per-ecosystem commands in `reference/ecosystems.md`
 7. Fixes on the Dependabot branch what breaks: lockfile regeneration, parent bumps, code and test changes
-8. Posts a TLDR review, then auto-merges (only when every gate item holds and the repository opted in) or labels the PR ready and requests the maintainer
+8. Posts a TLDR review, then auto-merges (only when every gate item holds, unless the repository turned it off) or labels the PR ready and requests the maintainer
 9. Gives every major a verdict; postponed updates keep their assessment or get an `ignore` entry with the condition that lifts it
-10. Asks decisions with `AskUserQuestion` and ends with a short report; with `--unattended`, writes both to a tracking issue answered by comment
+10. Offers to merge the ready PRs, asks decisions with `AskUserQuestion` and ends with a short report; in a headless session (`claude -p`, a Routine), writes both to a tracking issue answered by comment
 
-Claude never merges outside the gate in `reference/auto-merge.md`, and never closes a PR to postpone it: Dependabot would skip that version.
+Claude merges only through the gate in `reference/auto-merge.md` or on your answer in the session, and never closes a PR to postpone it: Dependabot would skip that version.
 
 #### Usage
 
@@ -280,12 +280,12 @@ Run it from a checkout of the repository, in one of three modes chosen only by t
 |---|---|
 | `/github:dependabot --dry-run` | First time in a repository: plan and report, nothing written |
 | `/github:dependabot` | You are at the terminal: it presents the plan, does the work, asks decisions as it goes |
-| `/github:dependabot --unattended` | Nobody watches (a Routine, `claude -p` from cron): it acts without pausing and writes report and decisions to a `Dependabot triage` issue |
+| `/github:dependabot --unattended` | It acts without pausing and asks its decisions at the end; headless (a Routine, `claude -p` from cron) it writes report and decisions to a `Dependabot triage` issue |
 
-- **Your queue** after a run is `is:pr is:open label:ready-to-merge`: every PR there is green, reviewed with a TLDR and only waits for your merge. The report gives a merge order when two PRs clash on the lockfile.
-- **Decisions** (a framework major, a package to drop, the config) are asked interactively, or posted in the tracking issue in unattended mode. Answer there with a comment such as `D1: A`; the next run acts on it, and an interactive run asks the ones still open.
+- **Your queue** after a run is `is:pr is:open label:ready-to-merge`: every PR there is green, reviewed with a TLDR and only waits for your merge. In a session with you at the terminal the skill offers to merge them itself. The report gives a merge order when two PRs clash on the lockfile.
+- **Decisions** (a framework major, a package to drop, the config) are asked in chat whenever the session can ask, `--unattended` included, and posted in the tracking issue only when headless. Answer there with a comment such as `D1: A`; the next run acts on it, and an interactive run asks the ones still open.
 - **Large backlogs** drain over several runs: each run takes `max_deep_work_per_run` PRs (5) through audit and fixes, closes the dead ones and lists the rest under "Next run".
-- **Auto-merge** stays off until the repository opts in. At the end of the first run the skill offers to write the `dependabot` key of `.claude/github.json`; see `skills/dependabot/reference/config.md` for every key.
+- **Auto-merge** of patch/minor PRs that pass the gate is on by default; turn it off for every repository with the plugin's `dependabot_auto_merge` option in `/config`, or for one with `"auto_merge": { "enabled": false }`. The same options set your defaults for merge method, scope, ready label and per-run caps. At the end of the first run the skill offers to write the `dependabot` key of `.claude/github.json`; see `skills/dependabot/reference/config.md` for every key.
 - **On a schedule**: `claude -p "/github:dependabot --unattended"` from the checkout, or a Routine with the same prompt. In a cloud session `@dependabot` commands do not reach Dependabot, so the run rebases and closes through the API instead.
 
 ## Project Config

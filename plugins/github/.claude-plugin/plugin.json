@@ -1,10 +1,61 @@
 {
   "name": "github",
-  "description": "GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), cross-repository roadmap and dependency mapping, Dependabot PR triage for any ecosystem (urgency, fixes on the branch, major verdicts, opt-in auto-merge), release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, and interactive setup for GitHub MCP server and gh CLI.",
-  "version": "0.8.0",
+  "description": "GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), cross-repository roadmap and dependency mapping, Dependabot PR triage for any ecosystem (urgency, fixes on the branch, major verdicts, gated auto-merge), release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, and interactive setup for GitHub MCP server and gh CLI.",
+  "version": "0.9.0",
   "author": {
     "name": "Fabio Napoleoni",
     "url": "https://github.com/fabn"
   },
-  "keywords": ["github", "release", "release-drafter", "release-drafter-setup", "ci", "publish", "gh", "setup", "git", "feature", "branch", "pr", "pull-request", "workflow", "commit", "issue", "epic", "pm", "project-board", "triage", "backlog", "sub-issue", "roadmap", "dependencies", "blocked-by", "dependency-tree", "cross-repo", "epic-status", "review", "code-review", "pr-review", "address-review", "resolve-comments", "calver", "autolabeler", "migration", "actionlint", "lint-actions", "workflow-linting", "dependabot", "dependency-updates", "security-updates", "vulnerabilities", "auto-merge", "lockfile"]
+  "keywords": ["github", "release", "release-drafter", "release-drafter-setup", "ci", "publish", "gh", "setup", "git", "feature", "branch", "pr", "pull-request", "workflow", "commit", "issue", "epic", "pm", "project-board", "triage", "backlog", "sub-issue", "roadmap", "dependencies", "blocked-by", "dependency-tree", "cross-repo", "epic-status", "review", "code-review", "pr-review", "address-review", "resolve-comments", "calver", "autolabeler", "migration", "actionlint", "lint-actions", "workflow-linting", "dependabot", "dependency-updates", "security-updates", "vulnerabilities", "auto-merge", "lockfile"],
+  "userConfig": {
+    "dependabot_auto_merge": {
+      "type": "boolean",
+      "title": "Dependabot: auto-merge",
+      "description": "Merge patch/minor Dependabot PRs that pass every item of the gate. A repository overrides it with dependabot.auto_merge.enabled in .claude/github.json.",
+      "default": true
+    },
+    "dependabot_merge_method": {
+      "type": "string",
+      "title": "Dependabot: merge method",
+      "description": "How PRs are merged, through the gate or on your answer.",
+      "options": [
+        "squash",
+        "merge",
+        "rebase"
+      ],
+      "default": "squash"
+    },
+    "dependabot_dependency_scope": {
+      "type": "string",
+      "title": "Dependabot: auto-merge scope",
+      "description": "all auto-merges runtime and development dependencies; development only what never reaches production.",
+      "options": [
+        "all",
+        "development"
+      ],
+      "default": "all"
+    },
+    "dependabot_ready_label": {
+      "type": "string",
+      "title": "Dependabot: ready label",
+      "description": "Label of PRs that only wait on your merge.",
+      "default": "ready-to-merge"
+    },
+    "dependabot_max_deep_work_per_run": {
+      "type": "number",
+      "title": "Dependabot: PRs per run",
+      "description": "PRs taken through audit and fixes in one run; the rest wait for the next.",
+      "default": 5,
+      "min": 1,
+      "max": 50
+    },
+    "dependabot_max_deps_per_pr": {
+      "type": "number",
+      "title": "Dependabot: packages per PR",
+      "description": "A PR moving more direct dependencies is split instead of audited as it is.",
+      "default": 6,
+      "min": 1,
+      "max": 50
+    }
+  }
 }

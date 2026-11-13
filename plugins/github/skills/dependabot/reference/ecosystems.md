@@ -28,7 +28,12 @@ out from the repository, and say in the report which ones were improvised.
 - **Parents**: the lockfile lists them (indented under each spec); `gem dependency <parent> -v <v>` shows a release's requirements, `gem list <parent> --remote --all` the releases to try. Follow the chain: the first parent release that admits the target may need its own parents moved.
 - **Hold back**: temporary exact pins in the `Gemfile` (`gem 'x', '= <default version>'`, plus its plugins), `bundle lock`, restore the `Gemfile`, `bundle lock` again: the versions stay.
 - **Changelog**: `gem fetch <gem> -v <to>` and read `CHANGELOG*` from `<from>` up, else the GitHub releases of the gem's `source_code_uri`.
-- **Lock check**: `BUNDLE_FROZEN=true bundle install --quiet`.
+- **Lock check**: resolve without writing and compare name and version of every resolved spec. Empty diff: the lock stands; a failing `bundle lock` or a moved version is a real clash.
+  ```bash
+  specs() { grep -E '^    [a-z]' | sed -E 's/ \(([^-)]+)[^)]*\)/ \1/' | sort -u; }
+  diff <(specs < Gemfile.lock) <(BUNDLE_GEMFILE=$PWD/Gemfile bundle lock --print | specs)
+  ```
+  Not `BUNDLE_FROZEN=true bundle install`: it fails whenever the local platform is missing from the lockfile ("Your bundle only supports platforms …"), which says nothing about the merge. The `sed` drops platform suffixes (`nokogiri (1.16.5-arm64-darwin)`) for the same reason.
 - **Smoke checks**: boot (`bundle exec ruby -e 'require "./config/environment"'` for Rails, `bundle exec rake -T` otherwise) and lint (`bundle exec rubocop`).
 - **Trap**: in a `git worktree`, a `bin/bundle` binstub on `PATH` may set `BUNDLE_GEMFILE` to the main checkout's `Gemfile`, so `bundle lock` rewrites the wrong lockfile. Prefix every call with `BUNDLE_GEMFILE=$PWD/Gemfile`.
 

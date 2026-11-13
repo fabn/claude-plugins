@@ -74,8 +74,8 @@ The Majors table is always shown in full, every row in it needs the user.
 
 **Needs you:** <decisions asked · PRs ready to merge (count + filter link) · a release — or "nothing">
 
-### Auto-merged — <n>
-| PR | Packages | Bump |
+### Merged — <n>
+| PR | Packages | Bump | Through |   (gate, or your answer)
 
 ### Closed — <n>
 <count by reason>
@@ -108,7 +108,7 @@ Ignore entries revisited: <n kept, n dropped (package: why)> · Config PR: #<n> 
 Every PR number is a link. When nothing is open and nothing is vulnerable, say
 so in one line and stop.
 
-## Tracking issue decisions (unattended)
+## Tracking issue decisions (headless)
 
 One comment per run, after the issue body is replaced with the report:
 
