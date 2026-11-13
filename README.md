@@ -38,7 +38,8 @@ Add to your `~/.claude/settings.json` (user-level) or `.claude/settings.json` (p
       "source": {
         "source": "github",
         "repo": "fabn/claude-plugins"
-      }
+      },
+      "autoUpdate": true
     }
   },
   "enableAllProjectMcpServers": true
