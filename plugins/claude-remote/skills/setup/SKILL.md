@@ -267,8 +267,10 @@ Read the target repo's `.claude/settings.json` (create `{}` if missing).
 
 Deep-merge the two with these rules:
 
-- **`extraKnownMarketplaces`**: add `fabn-claude-plugins` if absent; never
-  overwrite an existing entry under the same name — ask instead.
+- **`extraKnownMarketplaces`**: add `fabn-claude-plugins` if absent. An
+  existing entry with the same source only gains `"autoUpdate": true` (a
+  third-party marketplace never auto-updates otherwise); one with a different
+  source is never overwritten — ask instead.
 - **`enabledPlugins`**: add `claude-remote@fabn-claude-plugins: true`;
   leave other enabled plugins alone.
 - **`hooks.SessionStart`**: if the array already exists, **append** the new

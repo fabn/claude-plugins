@@ -10,7 +10,8 @@
       "source": {
         "source": "github",
         "repo": "fabn/claude-plugins"
-      }
+      },
+      "autoUpdate": true
     }
   }
 }

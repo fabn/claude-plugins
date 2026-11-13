@@ -68,7 +68,8 @@ Commit a `.claude/settings.json` to the repo with:
       "source": {
         "source": "github",
         "repo": "fabn/claude-plugins"
-      }
+      },
+      "autoUpdate": true
     }
   },
   "enabledPlugins": {
