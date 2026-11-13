@@ -5,29 +5,25 @@
     "url": "https://github.com/fabn"
   },
   "metadata": {
-    "description": "Claude Code plugins for infrastructure, monitoring, and DevOps workflows",
-    "version": "1.0.0"
+    "description": "Claude Code plugins for infrastructure, monitoring, and DevOps workflows"
   },
   "plugins": [
     {
       "name": "datadog",
       "source": "./plugins/datadog",
       "description": "Datadog monitoring workflows: dashboard creation, log search and analysis, APM trace investigation, metric discovery, and interactive setup",
-      "version": "1.2.0",
       "keywords": ["datadog", "terraform", "monitoring", "dashboard", "infrastructure", "metrics", "hcl", "logs", "traces", "apm", "search", "setup"]
     },
     {
       "name": "kubernetes",
       "source": "./plugins/kubernetes",
       "description": "Kubernetes workload rightsizing: derive CPU and memory requests from observed usage metrics, size limits for safety rather than savings, reconcile against the values declared in Terraform or Helm, and gate every change behind a rendered-plan check and a live-object check.",
-      "version": "0.1.2",
       "keywords": ["kubernetes", "k8s", "rightsizing", "resources", "requests", "limits", "cpu", "memory", "oom", "capacity", "cost", "over-provisioning", "pods", "workloads", "deployments", "datadog", "metrics", "terraform", "helm"]
     },
     {
       "name": "github",
       "source": "./plugins/github",
       "description": "GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), cross-repository roadmap and dependency mapping, Dependabot PR triage for any ecosystem (urgency, fixes on the branch, major verdicts, opt-in auto-merge), release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, and interactive setup for GitHub MCP server and gh CLI.",
-      "version": "0.8.0",
       "keywords": ["github", "release", "release-drafter", "release-drafter-setup", "ci", "publish", "gh", "setup", "git", "feature", "branch", "pr", "pull-request", "workflow", "commit", "issue", "epic", "pm", "project-board", "triage", "backlog", "sub-issue", "roadmap", "dependencies", "blocked-by", "dependency-tree", "cross-repo", "epic-status", "review", "code-review", "pr-review", "address-review", "resolve-comments", "calver", "autolabeler", "migration", "actionlint", "lint-actions", "workflow-linting",
         "dependabot",
         "dependency-updates",
@@ -40,28 +36,24 @@
       "name": "rails",
       "source": "./plugins/rails",
       "description": "Ruby on Rails development workflows: debugging and performance profiling, test scaffolding with RSpec and FactoryBot, refactoring patterns for service objects and concerns, and guided version upgrades",
-      "version": "0.1.0",
       "keywords": ["ruby", "rails", "rspec", "refactoring", "debugging", "performance", "testing", "factory-bot", "service-objects", "upgrade"]
     },
     {
       "name": "terraform",
       "source": "./plugins/terraform",
       "description": "Project-agnostic Terraform operations: plan with safety categorization, apply with confirmation gates and targeted apply, drift detection and resolution.",
-      "version": "0.4.1",
       "keywords": ["terraform", "infrastructure", "iac", "plan", "apply", "drift", "aws", "targeted-apply"]
     },
     {
       "name": "spacelift",
       "source": "./plugins/spacelift",
       "description": "Spacelift CI/CD workflows for Terraform: stack management, run inspection with log analysis, failure debugging, local previews, dependency tracking, and GraphQL schema exploration.",
-      "version": "0.2.0",
       "keywords": ["spacelift", "terraform", "infrastructure", "ci-cd", "stacks", "runs", "preview", "logs", "debugging", "graphql"]
     },
     {
       "name": "claude-remote",
       "source": "./plugins/claude-remote",
       "description": "Configure, verify, and diagnose Claude Code on the web (cloud sessions): generate per-repo setup scripts, SessionStart hooks, and settings.json wiring, run a fast readiness check at session start, plus log-driven debugging of failed remote bootstraps.",
-      "version": "0.5.0",
       "keywords": ["claude-remote", "claude-code-on-the-web", "web", "cloud", "remote", "setup", "bootstrap", "session-start", "hooks", "sandbox", "verify", "health-check", "ready", "debug", "diagnose", "mise", "mise-lock", "lockfile", "rate-limit", "upgrade"]
     }
   ]
