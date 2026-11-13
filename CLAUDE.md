@@ -25,7 +25,7 @@ claude-plugins/
 2. Create `plugins/<name>/.claude-plugin/plugin.json` with name, description, version, author, keywords
 3. Optionally add `.mcp.json` for bundled MCP servers
 4. Add skills under `plugins/<name>/skills/<skill-name>/SKILL.md`
-5. Update `.claude-plugin/marketplace.json` to include the new plugin in the `plugins` array
+5. Update `.claude-plugin/marketplace.json` to include the new plugin in the `plugins` array (no `version`: see Versioning)
 6. Add a row for the plugin to the root `README.md` "Available Plugins" table (alphabetical order), mirroring the description and skills list
 
 ## Adding a New Skill to an Existing Plugin
@@ -36,7 +36,11 @@ claude-plugins/
 4. Update the plugin's `README.md` (table, getting started, skill details section)
 5. Add new keywords to both `plugins/<plugin>/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 6. Keep `description` fields in sync between plugin.json and marketplace.json
-7. Bump `version` in both `plugin.json` and `marketplace.json` (patch for fixes, minor for new skills)
+7. Bump `version` in `plugin.json` (see Versioning)
+
+## Versioning
+
+Plugins are versioned independently and the repository cuts no global releases. `version` lives only in each `plugin.json`: bump it for every change to the plugin (patch for fixes, minor for new skills, major for breaking changes). `marketplace.json` carries no version, neither in `metadata` nor in plugin entries.
 
 ## Testing
 
