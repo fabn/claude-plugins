@@ -61,7 +61,8 @@ Update the body with the GitHub MCP (`update_pull_request`, `issue_write`) or `g
 | `gh` not authenticated | Stop, tell user to run `gh auth login` or `/github:setup` |
 | Not in a repository and no `-R` | Rerun with `-R owner/repo` |
 | `unsupported image type` | Convert to PNG (`sips -s format png` on macOS) and retry |
-| `curl` fails or `upload returned no url` | The endpoint is undocumented and may have changed. Stop and tell the user; do not fall back to committing the images or driving a browser without asking |
+| `not available in Claude Code web sessions` | Their proxy only forwards `repos/{owner}/{repo}/...` paths and refuses this upload before it reaches GitHub. Tell the user to run the upload from a local session; do not commit the images instead |
+| `upload failed for <file>: HTTP <status> <body>` | The endpoint is undocumented and may have changed. Stop and show the user the status and body; do not fall back to committing the images or driving a browser without asking |
 
 ## Related Skills
 

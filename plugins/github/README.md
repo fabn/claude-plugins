@@ -303,7 +303,7 @@ Images in a PR or issue without committing them:
 2. Targets the current repository, or another with `-R owner/repo`. On a private repository the attachment is readable only by whoever can read it; on a public one it becomes public once a body or comment references it, and stays so after that is deleted
 3. Prints one `<img>` tag per file, with an optional width (`-w 250` for phone screenshots), ready to paste in the body
 
-The endpoint is undocumented and may change: when an upload fails the skill stops and says so instead of committing the images.
+The endpoint is undocumented and may change: when an upload fails the skill stops and shows GitHub's answer instead of committing the images. It does not work in Claude Code web sessions, whose proxy refuses the upload, so the script exits there straight away.
 
 ## Project Config
 
