@@ -1,6 +1,6 @@
 # GitHub Plugin
 
-GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), cross-repository roadmap and dependency mapping, Dependabot PR triage for any ecosystem (urgency, fixes on the branch, major verdicts, opt-in auto-merge), release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, and interactive setup for GitHub MCP server and gh CLI.
+GitHub workflows: feature development with branch/commit/PR flow, addressing PR review comments, issue and project board management (Epics, sub-issues, triage), cross-repository roadmap and dependency mapping, Dependabot PR triage for any ecosystem (urgency, fixes on the branch, major verdicts, opt-in auto-merge), release management with Release Drafter (setup, upgrade, and publishing), actionlint CI for workflow linting, image attachments for PRs and issues from the command line, and interactive setup for GitHub MCP server and gh CLI.
 
 ## Skills
 
@@ -15,6 +15,7 @@ GitHub workflows: feature development with branch/commit/PR flow, addressing PR 
 | `/github:pm` | Issue and project board management — create issues (Epic/Feature/Task/Bug), expand Epics into sub-issues, triage missing fields, and list board items |
 | `/github:roadmap` | Cross-repository dependency map — what is blocked, by what, and what is actionable now, generated on demand from GitHub's own issue graph |
 | `/github:dependabot` | Work through the open Dependabot PRs of a repository in any ecosystem — urgency from advisories, close the dead ones, audit changelogs, fix on the Dependabot branch, give majors a verdict, auto-merge provably safe patch/minor, merge the rest on your answer or hand it over as reviewed PRs |
+| `/github:attach-images` | Upload screenshots and other images as GitHub attachments from the command line and embed them in a PR, issue, or comment, without committing them |
 
 ## Prerequisites
 
@@ -126,6 +127,12 @@ Pass `--unattended` to let it act without pausing and ask its decisions only at 
 
 ```
 /github:dependabot --unattended
+```
+
+To put screenshots in a PR or issue without committing them (prints the `<img>` tags to paste in the body):
+
+```
+/github:attach-images
 ```
 
 ## MCP Servers
@@ -287,6 +294,16 @@ Run it from a checkout of the repository, in one of three modes chosen only by t
 - **Large backlogs** drain over several runs: each run takes `max_deep_work_per_run` PRs (5) through audit and fixes, closes the dead ones and lists the rest under "Next run".
 - **Auto-merge** of patch/minor PRs that pass the gate is on by default; turn it off for every repository with the plugin's `dependabot_auto_merge` option in `/config`, or for one with `"auto_merge": { "enabled": false }`. The same options set your defaults for merge method, scope, ready label and per-run caps. At the end of the first run the skill offers to write the `dependabot` key of `.claude/github.json`; see `skills/dependabot/reference/config.md` for every key.
 - **On a schedule**: `claude -p "/github:dependabot --unattended"` from the checkout, or a Routine with the same prompt. In a cloud session `@dependabot` commands do not reach Dependabot, so the run rebases and closes through the API instead.
+
+### `/github:attach-images`
+
+Images in a PR or issue without committing them:
+
+1. Uploads each file through the endpoint behind drag-and-drop in the web editor (`uploads.github.com/user-attachments/assets`), authenticated with `gh auth token`
+2. Targets the current repository, or another with `-R owner/repo`. On a private repository the attachment is readable only by whoever can read it; on a public one it becomes public once a body or comment references it, and stays so after that is deleted
+3. Prints one `<img>` tag per file, with an optional width (`-w 250` for phone screenshots), ready to paste in the body
+
+The endpoint is undocumented and may change: when an upload fails the skill stops and shows GitHub's answer instead of committing the images. It does not work in Claude Code web sessions, whose proxy refuses the upload, so the script exits there straight away.
 
 ## Project Config
 
