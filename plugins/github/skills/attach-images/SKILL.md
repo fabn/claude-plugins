@@ -27,7 +27,7 @@ Upload local images as GitHub attachments and embed them in a PR, issue, or comm
 
 Supported types: PNG, JPEG, GIF, WebP. Name each file after what it shows (`light.png`, `dark.png`, `before.png`): the name becomes the `alt` text.
 
-Before uploading, check each image shows nothing that should not leave the machine (real customer data, tokens, internal URLs). Attachments are readable by anyone who can read the repository; on a public repository that is everyone.
+Before uploading, check each image shows nothing that should not leave the machine (real customer data, tokens, internal URLs). On a private repository an attachment is readable only by whoever can read the repository. On a public one it stays private until a body or comment references it, then anyone can open it, and deleting that body or comment does not take it back.
 
 ### Step 2: Upload
 

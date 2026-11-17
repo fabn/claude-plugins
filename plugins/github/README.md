@@ -300,7 +300,7 @@ Run it from a checkout of the repository, in one of three modes chosen only by t
 Images in a PR or issue without committing them:
 
 1. Uploads each file through the endpoint behind drag-and-drop in the web editor (`uploads.github.com/user-attachments/assets`), authenticated with `gh auth token`
-2. Targets the current repository, or another with `-R owner/repo`; the attachment is readable by whoever can read that repository
+2. Targets the current repository, or another with `-R owner/repo`. On a private repository the attachment is readable only by whoever can read it; on a public one it becomes public once a body or comment references it, and stays so after that is deleted
 3. Prints one `<img>` tag per file, with an optional width (`-w 250` for phone screenshots), ready to paste in the body
 
 The endpoint is undocumented and may change: when an upload fails the skill stops and says so instead of committing the images.
