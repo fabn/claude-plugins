@@ -8,7 +8,7 @@ A collection of Claude Code plugins for monitoring, infrastructure, and developm
 |--------|-------------|--------|
 | [**claude-remote**](plugins/claude-remote/) | Configure, verify, and diagnose Claude Code on the web (cloud sessions) | `setup`, `verify`, `debug` |
 | [**datadog**](plugins/datadog/) | Datadog monitoring: dashboards, logs, APM traces, metric discovery | `setup`, `dashboard`, `logs`, `traces` |
-| [**github**](plugins/github/) | GitHub workflows: issues, PRs, releases, project boards, code review, cross-repo roadmap, Dependabot triage | `setup`, `release`, `release-drafter`, `feature`, `pm`, `address-review`, `roadmap`, `actionlint`, `dependabot` |
+| [**github**](plugins/github/) | GitHub workflows: issues, PRs, releases, project boards, code review, cross-repo roadmap, Dependabot triage, image attachments | `setup`, `release`, `release-drafter`, `feature`, `pm`, `address-review`, `roadmap`, `actionlint`, `dependabot`, `attach-images` |
 | [**kubernetes**](plugins/kubernetes/) | Kubernetes workload rightsizing: requests and limits from observed usage, reconciled against Terraform or Helm | `rightsizing` |
 | [**rails**](plugins/rails/) | Ruby on Rails development: debugging, testing, refactoring, migrations | `debug`, `test`, `refactor`, `migrate`, `upgrade` |
 | [**spacelift**](plugins/spacelift/) | Spacelift CI/CD for Terraform: stack management, run inspection, debugging, previews | `manage`, `status`, `logs`, `debug`, `preview` |
